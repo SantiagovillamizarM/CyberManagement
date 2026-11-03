@@ -58,7 +58,13 @@ Arquitectura y decisiones: [docs/01-analisis-arquitectura.md](docs/01-analisis-a
    .venv\Scripts\alembic.exe upgrade head
    ```
 
-6. Ejecutar las pruebas (usan una base separada, `cybermanagement_test`):
+6. Crear el administrador inicial (usa `COMPANY_NAME`, `ADMIN_EMAIL` y `ADMIN_INITIAL_PASSWORD` del `.env`):
+
+   ```powershell
+   .venv\Scripts\python.exe -m scripts.create_admin
+   ```
+
+7. Ejecutar las pruebas (usan una base separada, `cybermanagement_test`):
 
    ```powershell
    .venv\Scripts\python.exe -m pytest -v

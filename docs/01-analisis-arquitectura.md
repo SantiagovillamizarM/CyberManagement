@@ -55,7 +55,7 @@ factura válida.
 - [x] Fase 2 — Configuración inicial (verificada el 2026-11-03: PostgreSQL, API, n8n, Gemini y Telegram)
 - [ ] Fase 3 — Backend
   - [x] 3.1 Modelos y migraciones (ver [02-base-de-datos.md](02-base-de-datos.md))
-  - [ ] 3.2 Seguridad y login del administrador
+  - [x] 3.2 Seguridad y login del administrador (ver [04-seguridad.md](04-seguridad.md))
   - [ ] 3.3 Empleados y códigos de registro
   - [ ] 3.4 Viáticos, gastos y auditoría
   - [ ] 3.5 Archivos

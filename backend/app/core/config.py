@@ -50,6 +50,13 @@ class Settings(BaseSettings):
     # --- Almacenamiento de archivos ---
     storage_dir: Path = PROJECT_ROOT / "storage"
 
+    # --- Sesiones del panel ---
+    session_absolute_hours: int = 8  # duración máxima de una sesión
+    session_idle_minutes: int = 60  # se cierra tras este tiempo sin actividad
+    max_failed_logins: int = 5
+    lockout_minutes: int = 15
+    min_password_length: int = 12
+
     @field_validator("secret_key", "internal_api_token", "registration_code_pepper")
     @classmethod
     def _secret_must_be_long(cls, value: SecretStr) -> SecretStr:
@@ -60,6 +67,11 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"
+
+    @property
+    def cookie_secure(self) -> bool:
+        # En producción las cookies solo viajan por HTTPS.
+        return self.is_production
 
     @property
     def database_url(self) -> URL:

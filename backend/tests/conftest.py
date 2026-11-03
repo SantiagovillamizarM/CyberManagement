@@ -21,9 +21,16 @@ from sqlalchemy.engine import Connection  # noqa: E402
 from sqlalchemy.exc import OperationalError  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
+from fastapi.testclient import TestClient  # noqa: E402
+
 from app.core.config import get_settings  # noqa: E402
-from app.db.session import engine  # noqa: E402
-from app.models import Company, Employee  # noqa: E402
+from app.core.security import hash_password  # noqa: E402
+from app.db.session import engine, get_db  # noqa: E402
+from app.main import app  # noqa: E402
+from app.models import AdminUser, Company, Employee  # noqa: E402
+from app.models.enums import AdminRole  # noqa: E402
+
+ADMIN_PASSWORD = "contraseña-de-prueba-segura"
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 
@@ -90,6 +97,28 @@ def company(db: Session) -> Company:
     db.add(company)
     db.flush()
     return company
+
+
+@pytest.fixture
+def client(db: Session) -> Iterator[TestClient]:
+    """Cliente HTTP cuya API usa la sesión de prueba (todo se deshace al final)."""
+    app.dependency_overrides[get_db] = lambda: db
+    yield TestClient(app)
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def admin(db: Session, company: Company) -> AdminUser:
+    admin = AdminUser(
+        company_id=company.id,
+        email="admin@cybermanagement.com",
+        full_name="Administrador",
+        password_hash=hash_password(ADMIN_PASSWORD),
+        role=AdminRole.SUPERADMIN,
+    )
+    db.add(admin)
+    db.flush()
+    return admin
 
 
 @pytest.fixture
