@@ -6,7 +6,8 @@ Definida en `backend/app/models/`; la estructura la crean las migraciones de Ale
 ## Convenciones
 
 - **Claves primarias UUID** (no 1, 2, 3…), para que no se puedan adivinar registros desde la URL.
-  Excepción: `audit_log` y `telegram_events` usan `BIGINT` porque tienen mucho volumen y nunca se exponen.
+  Excepción: `audit_log`, `telegram_events` y `registration_attempts` usan `BIGINT` porque tienen mucho
+  volumen y nunca se exponen.
 - **Dinero:** `NUMERIC(14,2)` y `Decimal` en Python. Nunca `float`.
 - **Fechas:** `timestamptz`, guardadas en UTC y mostradas en `America/Bogota`.
 - **Estados:** texto con una restricción `CHECK`. La base rechaza cualquier valor que no esté en la lista,
@@ -22,7 +23,7 @@ Definida en `backend/app/models/`; la estructura la crean las migraciones de Ale
 | Viáticos | `viaticos`, `viatico_movements` |
 | Gastos | `expenses`, `expense_items`, `categories`, `suppliers` |
 | Archivos e IA | `documents`, `ai_extractions` |
-| Telegram | `bot_sessions`, `telegram_events` |
+| Telegram | `bot_sessions`, `telegram_events`, `registration_attempts` |
 | Trazabilidad | `audit_log`, `reports` |
 
 ## Dos estados distintos

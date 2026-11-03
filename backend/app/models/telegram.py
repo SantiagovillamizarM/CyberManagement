@@ -14,7 +14,10 @@ class BotSession(Base):
 
     __tablename__ = "bot_sessions"
 
-    telegram_user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    # Lo asigna Telegram, no la base de datos: sin autoincremento.
+    telegram_user_id: Mapped[int] = mapped_column(
+        BigInteger, primary_key=True, autoincrement=False
+    )
     employee_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("employees.id", ondelete="CASCADE")
     )
@@ -25,6 +28,17 @@ class BotSession(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
     expires_at: Mapped[datetime | None]
+
+
+class RegistrationAttempt(Base):
+    """Intento de canjear un código de registro. Sirve para frenar la fuerza bruta."""
+
+    __tablename__ = "registration_attempts"
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    telegram_user_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    succeeded: Mapped[bool]
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now(), index=True)
 
 
 class TelegramEvent(Base):

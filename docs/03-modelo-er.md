@@ -1,6 +1,6 @@
 # 03 — Diagrama entidad-relación y modelo relacional
 
-Refleja la migración `e03f1d92d5f6` (esquema inicial). Fuente de verdad: `backend/app/models/`.
+Refleja hasta la migración `d5c232682c65` (intentos de registro). Fuente de verdad: `backend/app/models/`.
 
 > Los diagramas usan [Mermaid](https://mermaid.js.org/). GitHub los dibuja automáticamente;
 > en VS Code se ven con la extensión *Markdown Preview Mermaid Support*.
@@ -232,6 +232,12 @@ erDiagram
         jsonb filters
         varchar storage_key UK
     }
+    registration_attempts {
+        bigint id PK
+        bigint telegram_user_id
+        bool succeeded
+        timestamptz created_at
+    }
 
     companies ||--o{ admin_users : ""
     companies ||--o{ employees : ""
@@ -338,6 +344,10 @@ draft_expense_id? FK→expenses *SET NULL*, updated_at, expires_at?)
 
 **telegram_events** (**id** PK, update_id UK, telegram_user_id, employee_id? FK→employees *SET NULL*,
 event_type, received_at)
+
+**registration_attempts** (**id** PK, telegram_user_id, succeeded, created_at)
+- Índices en telegram_user_id y created_at. Sin FK: el intento existe aunque el usuario
+  nunca llegue a ser empleado. Sirve para limitar los intentos de canje de códigos.
 
 ### Trazabilidad
 

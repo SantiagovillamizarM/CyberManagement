@@ -57,6 +57,11 @@ class Settings(BaseSettings):
     lockout_minutes: int = 15
     min_password_length: int = 12
 
+    # --- Códigos de registro de empleados ---
+    registration_code_hours: int = 72  # vigencia del código
+    registration_max_failures: int = 5  # intentos fallidos permitidos...
+    registration_window_minutes: int = 15  # ...en esta ventana de tiempo
+
     @field_validator("secret_key", "internal_api_token", "registration_code_pepper")
     @classmethod
     def _secret_must_be_long(cls, value: SecretStr) -> SecretStr:

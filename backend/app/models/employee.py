@@ -29,7 +29,11 @@ class Employee(UUIDPrimaryKey, Timestamps, Base):
     # Borrado lógico: los gastos históricos deben conservarse.
     deleted_at: Mapped[datetime | None]
 
-    registration_codes: Mapped[list["RegistrationCode"]] = relationship(back_populates="employee")
+    # passive_deletes: al borrar el empleado, PostgreSQL borra sus códigos (ON DELETE
+    # CASCADE). Sin esto, SQLAlchemy intentaría dejar employee_id en NULL y fallaría.
+    registration_codes: Mapped[list["RegistrationCode"]] = relationship(
+        back_populates="employee", cascade="all, delete-orphan", passive_deletes=True
+    )
 
 
 class RegistrationCode(UUIDPrimaryKey, Base):

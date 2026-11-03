@@ -56,7 +56,7 @@ factura válida.
 - [ ] Fase 3 — Backend
   - [x] 3.1 Modelos y migraciones (ver [02-base-de-datos.md](02-base-de-datos.md))
   - [x] 3.2 Seguridad y login del administrador (ver [04-seguridad.md](04-seguridad.md))
-  - [ ] 3.3 Empleados y códigos de registro
+  - [x] 3.3 Empleados y códigos de registro (ver [05-empleados-y-codigos.md](05-empleados-y-codigos.md))
   - [ ] 3.4 Viáticos, gastos y auditoría
   - [ ] 3.5 Archivos
 - [ ] Fase 4 — Telegram

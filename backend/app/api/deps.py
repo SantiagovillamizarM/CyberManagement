@@ -1,10 +1,12 @@
-"""Dependencias compartidas por los endpoints del panel (autenticación y permisos)."""
+"""Dependencias compartidas por los endpoints (autenticación y permisos)."""
 
+import hmac
 from collections.abc import Callable
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.security import tokens_match
 from app.db.session import get_db
 from app.models import AdminSession, AdminUser
@@ -15,6 +17,13 @@ SESSION_COOKIE = "cm_session"
 CSRF_COOKIE = "cm_csrf"
 CSRF_HEADER = "X-CSRF-Token"
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+# Grupos de roles más usados.
+READERS = (AdminRole.SUPERADMIN, AdminRole.ADMIN, AdminRole.AUDITOR)
+EDITORS = (AdminRole.SUPERADMIN, AdminRole.ADMIN)
+
+
+# --- Panel web (administradores) ---
 
 
 def get_current_session(request: Request, db: Session = Depends(get_db)) -> AdminSession:
@@ -39,7 +48,7 @@ def get_current_admin(session: AdminSession = Depends(get_current_session)) -> A
 
 
 def require_roles(*roles: AdminRole) -> Callable[..., AdminUser]:
-    """Uso: admin: AdminUser = Depends(require_roles(AdminRole.SUPERADMIN, AdminRole.ADMIN))"""
+    """Uso: admin: AdminUser = Depends(require_roles(*EDITORS))"""
 
     def dependency(admin: AdminUser = Depends(get_current_admin)) -> AdminUser:
         if admin.role not in roles:
@@ -47,3 +56,16 @@ def require_roles(*roles: AdminRole) -> Callable[..., AdminUser]:
         return admin
 
     return dependency
+
+
+def client_ip(request: Request) -> str | None:
+    return request.client.host if request.client else None
+
+
+# --- Endpoints internos (solo n8n) ---
+
+
+def require_internal_token(x_internal_token: str = Header(default="")) -> None:
+    expected = get_settings().internal_api_token.get_secret_value()
+    if not hmac.compare_digest(x_internal_token.encode(), expected.encode()):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token interno inválido")
