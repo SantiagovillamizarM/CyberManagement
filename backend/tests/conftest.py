@@ -122,6 +122,15 @@ def admin(db: Session, company: Company) -> AdminUser:
 
 
 @pytest.fixture
+def csrf(client: TestClient, admin: AdminUser) -> dict[str, str]:
+    """Inicia sesión como administrador y devuelve la cabecera CSRF lista para usar."""
+    response = client.post(
+        "/api/v1/auth/login", json={"email": admin.email, "password": ADMIN_PASSWORD}
+    )
+    return {"X-CSRF-Token": response.json()["csrf_token"]}
+
+
+@pytest.fixture
 def employee(db: Session, company: Company) -> Employee:
     employee = Employee(
         company_id=company.id, first_name="Jhon", last_name="Pérez", internal_id="EMP-001"

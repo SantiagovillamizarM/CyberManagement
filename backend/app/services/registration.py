@@ -13,7 +13,6 @@ import logging
 import re
 import secrets
 import unicodedata
-import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
@@ -23,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models import BotSession, Employee, RegistrationAttempt, RegistrationCode
-from app.models.enums import ActorType, EmployeeStatus
+from app.models.enums import EmployeeStatus
 from app.services import audit
 from app.services.audit import Actor
 
@@ -120,10 +119,6 @@ def revoke_active_code(db: Session, employee: Employee, actor: Actor) -> bool:
     return True
 
 
-def _admin_id(actor: Actor) -> uuid.UUID | None:
-    return uuid.UUID(actor.id) if actor.type == ActorType.ADMIN and actor.id else None
-
-
 def generate_code(db: Session, employee: Employee, actor: Actor) -> IssuedCode:
     if employee.status != EmployeeStatus.ACTIVE or employee.deleted_at is not None:
         raise EmployeeNotEligibleError("El empleado está desactivado")
@@ -140,7 +135,7 @@ def generate_code(db: Session, employee: Employee, actor: Actor) -> IssuedCode:
         employee_id=employee.id,
         code_hash=hash_code(code),
         code_hint=f"{prefix}-…{random_part[-4:]}",
-        created_by_id=_admin_id(actor),
+        created_by_id=actor.admin_id,
         expires_at=expires_at,
     )
     db.add(record)

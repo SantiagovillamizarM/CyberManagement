@@ -7,24 +7,13 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import CSRF_HEADER
 from app.core.config import get_settings
 from app.models import AdminUser, AuditLog, Company, Employee, Expense
 from app.models.enums import AdminRole
-from tests.conftest import ADMIN_PASSWORD
 
 BASE = "/api/v1/employees"
 REDEEM = "/api/internal/registration/redeem"
 NEW = {"first_name": "Jhon", "last_name": "Pérez", "internal_id": "EMP-001"}
-
-
-@pytest.fixture
-def csrf(client: TestClient, admin: AdminUser) -> dict[str, str]:
-    """Inicia sesión y devuelve la cabecera CSRF lista para usar."""
-    response = client.post(
-        "/api/v1/auth/login", json={"email": admin.email, "password": ADMIN_PASSWORD}
-    )
-    return {CSRF_HEADER: response.json()["csrf_token"]}
 
 
 def create(client: TestClient, csrf: dict, **overrides) -> dict:

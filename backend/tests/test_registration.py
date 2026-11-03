@@ -231,6 +231,8 @@ def test_unlink_clears_telegram_and_bot_session(db: Session, employee: Employee,
 def test_linking_is_audited(db: Session, employee: Employee, actor: Actor) -> None:
     redeem(db, registration.generate_code(db, employee, actor).code)
 
-    actions = db.scalars(select(AuditLog.action).order_by(AuditLog.id)).all()
+    entries = db.scalars(select(AuditLog).order_by(AuditLog.id)).all()
 
-    assert actions == ["create", "link_telegram"]
+    assert [e.action for e in entries] == ["create", "link_telegram"]
+    # Los valores se guardan como JSON real, no como texto.
+    assert entries[0].new_value["hint"].startswith("JHON-")

@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request, Response
 
 from app.api import health
 from app.api.internal import registration as internal_registration
-from app.api.v1 import auth, employees
+from app.api.v1 import auth, catalog, employees, expenses, viaticos
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 
@@ -35,6 +35,9 @@ async def security_headers(request: Request, call_next) -> Response:
 app.include_router(health.router, prefix="/api")
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(employees.router, prefix="/api/v1")
+app.include_router(catalog.router, prefix="/api/v1")
+app.include_router(viaticos.router, prefix="/api/v1")
+app.include_router(expenses.router, prefix="/api/v1")
 
 # Endpoints internos: solo n8n (token interno). En producción, Caddy NO los expone.
 app.include_router(internal_registration.router, prefix="/api/internal")

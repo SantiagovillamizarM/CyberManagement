@@ -31,13 +31,23 @@ class Actor:
     def from_employee(cls, employee: Employee) -> "Actor":
         return cls(ActorType.EMPLOYEE, str(employee.id))
 
+    @property
+    def admin_id(self) -> uuid.UUID | None:
+        """ID del administrador, para columnas como created_by_id (None si no es admin)."""
+        return uuid.UUID(self.id) if self.type == ActorType.ADMIN and self.id else None
+
 
 SYSTEM = Actor(ActorType.SYSTEM)
 
 
-def _jsonable(value: Any) -> Any:
+def to_jsonable(value: Any) -> Any:
+    """Convierte un valor de Python en algo que se puede guardar en JSONB sin perder información."""
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
+    if isinstance(value, dict):
+        return {str(k): to_jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [to_jsonable(v) for v in value]
     if isinstance(value, Enum):
         return value.value
     if isinstance(value, (uuid.UUID, Decimal)):
@@ -67,8 +77,8 @@ def log(
             entity_id=str(entity_id),
             action=action,
             field=field,
-            old_value=_jsonable(old_value),
-            new_value=_jsonable(new_value),
+            old_value=to_jsonable(old_value),
+            new_value=to_jsonable(new_value),
             actor_type=actor.type,
             actor_id=actor.id,
             ip_address=actor.ip_address,

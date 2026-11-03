@@ -57,7 +57,7 @@ factura válida.
   - [x] 3.1 Modelos y migraciones (ver [02-base-de-datos.md](02-base-de-datos.md))
   - [x] 3.2 Seguridad y login del administrador (ver [04-seguridad.md](04-seguridad.md))
   - [x] 3.3 Empleados y códigos de registro (ver [05-empleados-y-codigos.md](05-empleados-y-codigos.md))
-  - [ ] 3.4 Viáticos, gastos y auditoría
+  - [x] 3.4 Viáticos, gastos y auditoría (ver [06-viaticos-y-gastos.md](06-viaticos-y-gastos.md))
   - [ ] 3.5 Archivos
 - [ ] Fase 4 — Telegram
 - [ ] Fase 5 — Inteligencia artificial

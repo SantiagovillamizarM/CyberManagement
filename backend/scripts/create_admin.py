@@ -1,4 +1,4 @@
-"""Crea la empresa y el administrador inicial a partir del .env.
+"""Crea la empresa, el administrador inicial y las categorías por defecto a partir del .env.
 
 Uso (desde la carpeta backend):
     python -m scripts.create_admin
@@ -14,6 +14,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from app.core.config import PROJECT_ROOT
 from app.db.session import SessionLocal
 from app.services.auth import WeakPasswordError, create_initial_admin
+from app.services.catalog import ensure_default_categories
 
 
 class InitialAdminSettings(BaseSettings):
@@ -37,7 +38,10 @@ def main() -> int:
         except WeakPasswordError as exc:
             print(f"[FALLA] {exc}")
             return 1
+        new_categories = ensure_default_categories(db, admin.company_id)
         db.commit()
+    if new_categories:
+        print(f"[OK] {new_categories} categorías de gasto por defecto creadas")
 
     if created:
         print(f"[OK] Administrador creado: {admin.email} (rol: {admin.role.value})")
