@@ -1,0 +1,17 @@
+# Secretos: NUNCA subir al repositorio
+.env
+
+# Archivos subidos (facturas) e informes generados
+storage/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Editores y sistema
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

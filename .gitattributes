@@ -1,0 +1,5 @@
+# Los scripts que se ejecutan dentro de contenedores Linux deben usar saltos de línea LF.
+* text=auto
+*.sh text eol=lf
+*.sql text eol=lf
+Dockerfile text eol=lf
