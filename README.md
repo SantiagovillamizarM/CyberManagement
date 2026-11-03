@@ -52,7 +52,13 @@ Arquitectura y decisiones: [docs/01-analisis-arquitectura.md](docs/01-analisis-a
    .venv\Scripts\python.exe -m scripts.check_services
    ```
 
-5. Ejecutar las pruebas:
+5. Crear o actualizar las tablas de la base de datos (migraciones):
+
+   ```powershell
+   .venv\Scripts\alembic.exe upgrade head
+   ```
+
+6. Ejecutar las pruebas (usan una base separada, `cybermanagement_test`):
 
    ```powershell
    .venv\Scripts\python.exe -m pytest -v
@@ -67,6 +73,19 @@ docker compose down            # detener (los datos se conservan)
 ```
 
 > ⚠️ `docker compose down -v` **borra** los volúmenes, es decir, la base de datos y n8n.
+
+### Cambios en los modelos
+
+Después de modificar un archivo en `backend/app/models/`:
+
+```powershell
+cd backend
+.venv\Scripts\alembic.exe revision --autogenerate -m "descripcion del cambio"
+# Revisar el archivo generado en alembic/versions/ antes de aplicarlo
+.venv\Scripts\alembic.exe upgrade head
+```
+
+La prueba `test_migrations_match_models` falla si se olvida crear la migración.
 
 ## Estructura
 

@@ -9,6 +9,8 @@ WORKDIR /code
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
+COPY alembic.ini .
+COPY alembic ./alembic
 COPY app ./app
 
 # Nunca ejecutar la aplicación como root dentro del contenedor.

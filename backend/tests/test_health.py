@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
 
-from app.db.session import engine, get_db
+from app.db.session import get_db
 from app.main import app
 
 
@@ -30,16 +30,7 @@ def test_health_returns_503_when_database_is_down(client: TestClient) -> None:
     assert response.json() == {"status": "degraded", "database": "error"}
 
 
-def _database_available() -> bool:
-    try:
-        with engine.connect():
-            return True
-    except OperationalError:
-        return False
-
-
-@pytest.mark.skipif(not _database_available(), reason="PostgreSQL no está corriendo")
-def test_health_ok_with_real_database(client: TestClient) -> None:
+def test_health_ok_with_real_database(database: None, client: TestClient) -> None:
     response = client.get("/api/health")
 
     assert response.status_code == 200
