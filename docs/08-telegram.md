@@ -84,6 +84,9 @@ Cada `method` es un método oficial de la Bot API. Para agregar capacidades nuev
 
 ## Fotos y archivos (paso 4.3)
 
+> Desde la Fase 5, al recibir la foto de la factura la IA la lee y el bot salta lo que ya leyó.
+> Ver [10-inteligencia-artificial.md](10-inteligencia-artificial.md#en-el-bot-paso-52--appbotexpense_flowpy).
+
 ```
 Empleado envía foto ─► n8n ─► Python /updates ─► [sendMessage "Recibiendo…", cm:store_file]
 n8n (cm:store_file): getFile ─► descarga ─► POST /api/internal/telegram/files (multipart)

@@ -125,7 +125,7 @@
         "method": "GET",
         "url": "=https://api.telegram.org/file/bot{{ $env.TELEGRAM_BOT_TOKEN }}/{{ $json.result.file_path }}",
         "options": {
-          "timeout": 60000,
+          "timeout": 120000,
           "response": {
             "response": { "responseFormat": "file", "outputPropertyName": "data" }
           }
@@ -159,7 +159,7 @@
           ]
         },
         "options": {
-          "timeout": 60000
+          "timeout": 120000
         }
       },
       "notes": "Python valida el archivo, lo guarda DE INMEDIATO (regla fundamental) y responde con las acciones siguientes."

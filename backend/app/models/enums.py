@@ -91,3 +91,10 @@ class ActorType(StrEnum):
     EMPLOYEE = "employee"
     SYSTEM = "system"
     AI = "ai"
+
+
+class NotificationStatus(StrEnum):
+    PENDING = "pending"  # esperando su turno (o un reintento)
+    SENDING = "sending"  # n8n lo tomó y lo está enviando
+    SENT = "sent"
+    FAILED = "failed"  # se agotaron los intentos o el empleado bloqueó el bot

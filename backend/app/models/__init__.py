@@ -6,6 +6,7 @@ from app.models.company import Company
 from app.models.document import AIExtraction, Document
 from app.models.employee import DataConsent, Employee, RegistrationCode
 from app.models.expense import Category, Expense, ExpenseItem, Supplier
+from app.models.notification import Notification
 from app.models.report import Report
 from app.models.telegram import BotSession, RegistrationAttempt, TelegramEvent
 from app.models.viatico import Viatico, ViaticoMovement
@@ -23,6 +24,7 @@ __all__ = [
     "Employee",
     "Expense",
     "ExpenseItem",
+    "Notification",
     "RegistrationAttempt",
     "RegistrationCode",
     "Report",

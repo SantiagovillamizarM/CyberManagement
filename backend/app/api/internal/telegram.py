@@ -13,6 +13,7 @@ from fastapi import APIRouter, Body, Depends, File, Form, Header, HTTPException,
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.ai.gemini import VisionModel, get_vision_model
 from app.api.deps import require_internal_token
 from app.api.uploads import read_upload
 from app.bot.engine import handle_file, handle_update
@@ -53,6 +54,7 @@ def receive_file(
     file_name: str | None = Form(default=None, max_length=255),
     db: Session = Depends(get_db),
     storage: Storage = Depends(get_storage),
+    vision: VisionModel = Depends(get_vision_model),
 ) -> ActionsResponse:
     """n8n sube aquí el archivo que descargó de Telegram (acción cm:store_file).
 
@@ -62,7 +64,7 @@ def receive_file(
     actions = handle_file(
         db, storage,
         telegram_user_id=telegram_user_id, purpose=purpose, data=read_upload(file),
-        file_name=file_name or file.filename, file_unique_id=file_unique_id,
+        file_name=file_name or file.filename, file_unique_id=file_unique_id, vision=vision,
     )
     db.commit()
     return ActionsResponse(actions=actions)

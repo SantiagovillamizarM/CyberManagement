@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session  # noqa: E402
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from app.ai.gemini import get_vision_model  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.core.security import hash_password  # noqa: E402
 from app.db.session import engine, get_db  # noqa: E402
@@ -103,6 +104,8 @@ def company(db: Session) -> Company:
 def client(db: Session) -> Iterator[TestClient]:
     """Cliente HTTP cuya API usa la sesión de prueba (todo se deshace al final)."""
     app.dependency_overrides[get_db] = lambda: db
+    # Las pruebas NUNCA llaman a Gemini de verdad (no gastan cuota): IA desactivada por defecto.
+    app.dependency_overrides[get_vision_model] = lambda: None
     yield TestClient(app)
     app.dependency_overrides.clear()
 

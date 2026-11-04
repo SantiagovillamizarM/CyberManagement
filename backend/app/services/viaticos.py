@@ -21,7 +21,7 @@ from app.models.enums import (
     MovementType,
     ViaticoStatus,
 )
-from app.services import audit
+from app.services import audit, notifications
 from app.services.audit import Actor
 
 ENTITY = "viatico"
@@ -169,6 +169,8 @@ def open_viatico(
         actor=actor,
         new_value={"initial_amount": initial_amount, "purpose": purpose, "source": source},
     )
+    if source == MovementSource.ADMIN:  # si lo declaró el propio empleado en el bot, no hace falta avisarle
+        notifications.viatico_opened(db, employee, viatico, initial_amount)
     return viatico
 
 
@@ -214,6 +216,9 @@ def add_movement(
         actor=actor,
         new_value={"amount": amount, "note": note},
     )
+    if source == MovementSource.ADMIN:
+        notifications.viatico_movement(db, employee, viatico, type=type, amount=amount, note=note,
+                                       remaining=compute_balance(db, viatico).remaining)
     return movement
 
 
@@ -247,4 +252,5 @@ def close_viatico(db: Session, viatico: Viatico, actor: Actor) -> Balance:
         new_value={"remaining": balance.remaining, "settlement": balance.settlement},
     )
     db.flush()
+    notifications.viatico_closed(db, employee, viatico, balance)
     return balance

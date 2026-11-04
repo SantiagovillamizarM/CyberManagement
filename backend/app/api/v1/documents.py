@@ -5,14 +5,16 @@ import uuid
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.ai.gemini import VisionModel, get_vision_model
 from app.api.deps import EDITORS, READERS, client_ip, require_roles
 from app.api.uploads import handle_file_errors, read_upload
 from app.db.session import get_db
 from app.models import AdminUser
 from app.models.enums import DocumentKind, ProcessingStatus
-from app.schemas.documents import DocumentList, DocumentOut, UploadResult
+from app.schemas.documents import AnalysisOut, DocumentList, DocumentOut, ExtractionOut, UploadResult
 from app.services import documents as service
 from app.services import expenses as expense_service
+from app.services import extraction as extraction_service
 from app.services.audit import Actor
 from app.storage import Storage, get_storage
 from app.storage.base import StorageError
@@ -120,3 +122,36 @@ def upload_to_expense(
     if not stored.created:
         response.status_code = status.HTTP_200_OK
     return UploadResult(document=DocumentOut.from_model(document), duplicate=not stored.created)
+
+
+@router.get("/documents/{document_id}/extractions", response_model=list[ExtractionOut])
+def list_extractions(
+    document_id: uuid.UUID,
+    admin: AdminUser = Depends(require_roles(*READERS)),
+    db: Session = Depends(get_db),
+) -> list[ExtractionOut]:
+    """Todos los intentos de lectura con IA de un documento, del más antiguo al más reciente."""
+    document = _load(db, admin, document_id)
+    return [ExtractionOut.model_validate(e) for e in document.extractions]
+
+
+@router.post("/documents/{document_id}/analyze", response_model=AnalysisOut)
+def analyze(
+    document_id: uuid.UUID,
+    admin: AdminUser = Depends(require_roles(*EDITORS)),
+    db: Session = Depends(get_db),
+    storage: Storage = Depends(get_storage),
+    model: VisionModel = Depends(get_vision_model),
+) -> AnalysisOut:
+    """Lee (o vuelve a leer) la factura con la IA. Útil si el intento anterior falló.
+
+    Siempre responde 200 con el intento registrado, también si Gemini falló (outcome = error).
+    """
+    document = _load(db, admin, document_id)
+    try:
+        result = extraction_service.analyze_document(db, storage, document, model)
+    except extraction_service.NotAnalyzableError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
+    db.commit()
+    return AnalysisOut(document=DocumentOut.from_model(document),
+                       extraction=ExtractionOut.model_validate(result.extraction))

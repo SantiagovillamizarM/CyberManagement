@@ -26,7 +26,7 @@ from app.models.enums import (
     PaymentSource,
     ViaticoStatus,
 )
-from app.services import audit, catalog
+from app.services import audit, catalog, notifications
 from app.services.audit import Actor
 from app.utils.dates import local_today
 from app.utils.nit import parse_nit
@@ -533,7 +533,9 @@ def start_review(db: Session, expense: Expense, actor: Actor) -> Expense:
 def approve(db: Session, expense: Expense, actor: Actor) -> Expense:
     expense.reviewed_by_id = actor.admin_id
     expense.reviewed_at = datetime.now(UTC)
-    return _transition(db, expense, allowed_from=REVIEWABLE, to=ExpenseStatus.APPROVED, actor=actor)
+    _transition(db, expense, allowed_from=REVIEWABLE, to=ExpenseStatus.APPROVED, actor=actor)
+    notifications.expense_reviewed(db, expense)  # misma transacción que la aprobación
+    return expense
 
 
 def reject(db: Session, expense: Expense, actor: Actor, reason: str) -> Expense:
@@ -542,9 +544,9 @@ def reject(db: Session, expense: Expense, actor: Actor, reason: str) -> Expense:
     expense.rejection_reason = reason.strip()
     expense.reviewed_by_id = actor.admin_id
     expense.reviewed_at = datetime.now(UTC)
-    return _transition(
-        db, expense, allowed_from=REVIEWABLE, to=ExpenseStatus.REJECTED, actor=actor, reason=reason
-    )
+    _transition(db, expense, allowed_from=REVIEWABLE, to=ExpenseStatus.REJECTED, actor=actor, reason=reason)
+    notifications.expense_reviewed(db, expense)
+    return expense
 
 
 def close(db: Session, expense: Expense, actor: Actor) -> Expense:

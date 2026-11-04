@@ -22,6 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.ai.gemini import VisionModel
 from app.bot import messages as msg
 from app.bot import expense_flow, fix_flow
 from app.bot.actions import Action, Keyboard, answer_callback, remove_buttons, send_message
@@ -313,8 +314,12 @@ def handle_file(
     data: bytes,
     file_name: str | None,
     file_unique_id: str | None,
+    vision: VisionModel | None = None,
 ) -> list[Action]:
-    """Guarda el archivo de inmediato (regla fundamental) y luego continúa la conversación."""
+    """Guarda el archivo de inmediato (regla fundamental) y luego continúa la conversación.
+
+    `vision`: la IA que lee las facturas. None = IA desactivada (se sigue con datos manuales).
+    """
     employee = db.scalar(select(Employee).where(Employee.telegram_user_id == telegram_user_id))
     if employee is None:
         return []  # no hay empresa a la cual asociarlo; el bot ya le pidió registrarse
@@ -342,6 +347,7 @@ def handle_file(
     if fix_flow.is_active(session):
         actions = fix_flow.on_file_stored(db, session, employee, chat, stored.document)
     else:
-        actions = expense_flow.on_file_stored(db, session, employee, chat, stored.document, purpose)
+        actions = expense_flow.on_file_stored(db, session, employee, chat, stored.document, purpose,
+                                              storage=storage, vision=vision)
     db.flush()
     return actions

@@ -73,7 +73,7 @@ EXP_ASK_PHOTO = (
     "Si no tienes foto, pulsa «Registrar sin foto»."
 )
 EXP_NO_PHOTO = "✍️ Registrar sin foto"
-EXP_RECEIVING = "📥 Recibiendo el archivo…"
+EXP_RECEIVING = "📥 Recibiendo el archivo… dame unos segundos."
 EXP_PHOTO_SAVED = "✅ Foto de la factura guardada."
 EXP_PHOTO_SAVED_GPS = "✅ Foto de la factura guardada (incluye ubicación GPS)."
 EXP_ALREADY_HAVE_PHOTO = "Ya tengo la foto de esta factura. Si quieres cambiarla, usa ✏️ Editar → Foto."
@@ -115,10 +115,10 @@ EXP_LOCATION_SAVED = "📍 Ubicación registrada."
 EXP_LOCATION_SKIPPED = "Sin ubicación."
 
 EXP_SUMMARY = (
-    "🧾 <b>Resumen del gasto</b>\n\n"
+    "{title}\n\n"
     "<b>Descripción:</b> {description}\n"
     "<b>Valor total:</b> {total}\n"
-    "<b>Valor unitario:</b> {unit_price}\n"
+    "{amounts}"
     "<b>Fecha de la factura:</b> {issue_date}\n"
     "<b>Establecimiento:</b> {supplier}\n"
     "<b>N.º de factura:</b> {invoice_number}\n"
@@ -126,7 +126,34 @@ EXP_SUMMARY = (
     "<b>Pago:</b> {payment}\n"
     "<b>Ubicación:</b> {location}\n"
     "<b>Foto:</b> {photo}\n\n"
-    "¿Los datos son correctos?"
+    "{question}"
+)
+EXP_SUMMARY_TITLE = "🧾 <b>Resumen del gasto</b>"
+EXP_SUMMARY_QUESTION = "¿Los datos son correctos?"
+# Escenario A del requerimiento 3.1: los datos los leyó la IA.
+EXP_SUMMARY_TITLE_AI = "🤖 <b>Esta es la información que pude identificar en tu factura.</b>"
+EXP_SUMMARY_QUESTION_AI = "¿Es correcta? Si algo no coincide, tócalo en ✏️ Editar."
+EXP_SUMMARY_UNIT = "<b>Valor unitario:</b> {unit_price}\n"
+EXP_SUMMARY_TAXES = "<b>Subtotal:</b> {subtotal} · <b>Impuestos:</b> {tax_total}\n"
+EXP_SUMMARY_ITEMS = "<b>Productos:</b>\n{lines}\n"
+EXP_SUMMARY_ITEM = "  • {quantity} × {description} — {line_total}"
+EXP_SUMMARY_MORE_ITEMS = "  • … y {count} más"
+
+# --- Lectura de la factura con IA (Fase 5) ---
+EXP_AI_READ = "🤖 Leí tu factura."
+EXP_AI_READ_GPS = "🤖 Leí tu factura (la foto incluye ubicación GPS)."
+EXP_AI_UNREADABLE = (
+    "✅ Guardé la foto, pero no pude interpretar bien la información de la factura "
+    "(puede estar borrosa, oscura o cortada).\n"
+    "Te pediré los datos manualmente."
+)
+EXP_AI_NOT_INVOICE = (
+    "🤔 No pude identificar una factura en esta imagen.\n"
+    "¿Quieres enviar otra fotografía? También puedes registrar el gasto sin foto."
+)
+EXP_AI_FAILED = (
+    "✅ Guardé la foto, pero en este momento no pude leerla automáticamente.\n"
+    "Te pediré los datos manualmente."
 )
 EXP_PAY_VIATICO = "Viático «{purpose}»"
 EXP_PAY_NEW_VIATICO = "Viático nuevo «{purpose}» ({amount} iniciales)"
@@ -237,3 +264,41 @@ HELP_LINKED = (
 )
 CANCELLED = "Operación cancelada."
 CANCELLED_UNLINKED = "Operación cancelada. Escríbeme cualquier mensaje cuando quieras comenzar."
+
+# --- Avisos (Fase 6: los envía n8n desde la bandeja de salida) ---
+NOTIF_EXPENSE_APPROVED = "✅ Tu gasto <b>{description}</b> por <b>{total}</b> ({date}) fue <b>aprobado</b>."
+NOTIF_EXPENSE_REJECTED = (
+    "❌ Tu gasto <b>{description}</b> por <b>{total}</b> ({date}) fue <b>rechazado</b>.\n"
+    "<b>Motivo:</b> {reason}\n\n"
+    "Puedes corregirlo y reenviarlo desde «🧾 Mis gastos»."
+)
+NOTIF_VIATICO_OPENED = (
+    "💼 Se te asignó un viático: <b>{purpose}</b> por <b>{amount}</b>.\n"
+    "Al registrar tus gastos, elígelo como el dinero con que pagaste."
+)
+NOTIF_VIATICO_ADDITIONAL = "💰 Recibiste <b>{amount}</b> adicionales en tu viático <b>{purpose}</b>.\nDisponible: <b>{remaining}</b>"
+NOTIF_VIATICO_REFUND = "↩️ Se registró tu reintegro de <b>{amount}</b> del viático <b>{purpose}</b>.\nDisponible: <b>{remaining}</b>"
+NOTIF_VIATICO_ADJUSTMENT = (
+    "🛠️ Tu viático <b>{purpose}</b> tuvo un ajuste de <b>{amount}</b>: {note}\nDisponible: <b>{remaining}</b>"
+)
+NOTIF_VIATICO_CLOSED = (
+    "🔒 Tu viático <b>{purpose}</b> fue cerrado.\n"
+    "Entregado: {delivered} · Gastado: {spent} · Reintegrado: {refunded}\n{settlement}"
+)
+NOTIF_SETTLEMENT = {
+    "employee_must_return": "Te sobraron <b>{amount}</b>: debes reintegrarlos a la empresa.",
+    "company_must_reimburse": "Gastaste <b>{amount}</b> de más: la empresa te los debe reembolsar.",
+    "balanced": "Quedaste a paz y salvo ✅",
+}
+NOTIF_REMINDER_UNFINISHED = (
+    "⏰ Tienes un <b>registro de gasto sin terminar</b>.\n"
+    "Escríbeme cualquier mensaje para continuar, o /cancelar para descartarlo."
+)
+NOTIF_REMINDER_PHOTOS = (
+    "⏰ Tienes <b>{count}</b> foto(s) de facturas que enviaste pero aún no registraste como gasto.\n"
+    "Toca «📸 Registrar gasto» y envíalas de nuevo para terminar."
+)
+NOTIF_ADMIN_PENDING = (
+    "📋 <b>CyberManagement</b>: hay <b>{count}</b> gasto(s) por revisar, por <b>{total}</b>.\n"
+    "Revísalos en el panel."
+)

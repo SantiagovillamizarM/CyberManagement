@@ -46,6 +46,12 @@ class Settings(BaseSettings):
 
     # --- Inteligencia artificial ---
     gemini_api_key: SecretStr
+    gemini_model: str = "gemini-2.5-flash"
+    gemini_timeout_seconds: float = 45.0
+    # 0 = sin "razonamiento" extra: responde más rápido (el empleado espera en el chat).
+    gemini_thinking_budget: int | None = 0
+    # Por debajo de esta confianza, la factura se trata como ilegible (escenario B).
+    ai_min_confidence: float = 0.5
 
     # --- Telegram ---
     # Telegram lo envía en cada webhook (cabecera X-Telegram-Bot-Api-Secret-Token).
@@ -54,6 +60,14 @@ class Settings(BaseSettings):
     telegram_webhook_secret: SecretStr
     # Versión de la política de tratamiento de datos que acepta el empleado (Ley 1581).
     data_policy_version: str = "2026-11-v1"
+
+    # --- Notificaciones (Fase 6) ---
+    # Chat de Telegram donde llegan los avisos para el administrador (su propio chat o un
+    # grupo). Vacío = no se envían avisos al administrador.
+    admin_telegram_chat_id: int | None = None
+    notification_max_attempts: int = 5
+    # Un registro de gasto sin terminar se recuerda tras estas horas sin actividad.
+    reminder_idle_hours: int = 12
 
     # --- Panel web (HTML/CSS/JS). En desarrollo lo sirve la propia API. ---
     frontend_dir: Path = PROJECT_ROOT / "frontend"
@@ -84,6 +98,12 @@ class Settings(BaseSettings):
         if len(value.get_secret_value()) < MIN_SECRET_LENGTH:
             raise ValueError(f"debe tener al menos {MIN_SECRET_LENGTH} caracteres")
         return value
+
+    @field_validator("admin_telegram_chat_id", mode="before")
+    @classmethod
+    def _empty_means_none(cls, value: object) -> object:
+        # "ADMIN_TELEGRAM_CHAT_ID=" (vacío) en el .env significa "sin configurar".
+        return None if isinstance(value, str) and not value.strip() else value
 
     @property
     def is_production(self) -> bool:

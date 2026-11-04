@@ -7,13 +7,17 @@ reinicios de la API. Los gastos y viáticos NO se escriben hasta que confirma.
 EXCEPCIÓN (regla fundamental): las fotos y archivos SÍ se guardan apenas llegan
 (tabla documents), aunque luego cancele. Nunca se pierde una foto de una factura.
 
+Con la foto, la IA lee la factura (Fase 5, escenarios A/B/C del requerimiento 3.1).
+En el escenario A los datos leídos se llenan solos y esos pasos se SALTAN
+(data["ai_skip"]); solo se pregunta lo que falte y al final se muestra el resumen.
+
     [viático] ─► foto ─► descripción ─► total ─► valor unitario ─► fecha ─► NIT
               ─► (nombre ─► RUT) ─► n.º factura ─► categoría ─► ubicación ─► resumen
 """
 
 import html
 import uuid
-from datetime import date
+from datetime import date, time
 from decimal import Decimal
 from typing import Any
 
@@ -27,9 +31,12 @@ from app.bot.inputs import ALLOWED_MIME, INVOICE, RUT_FILE, InvalidInput  # noqa
 from app.bot.menu import MENU, menu_action
 from app.bot.updates import Incoming, Kind
 from app.models import BotSession, Document, Employee, Supplier, Viatico
-from app.models.enums import LocationSource, MovementSource, PaymentSource, ViaticoStatus
-from app.services import audit, catalog, documents, expenses, viaticos
+from app.ai.gemini import VisionModel
+from app.ai.invoice import InvoiceData
+from app.models.enums import DataSource, ExtractionOutcome, LocationSource, MovementSource, PaymentSource, ViaticoStatus
+from app.services import audit, catalog, documents, expenses, extraction, viaticos
 from app.services.audit import Actor
+from app.storage import Storage
 from app.utils.dates import InvalidDateError, local_today, parse_invoice_date
 from app.utils.money import format_cop
 from app.utils.nit import InvalidNitError, parse_nit
@@ -96,7 +103,26 @@ def _open_viaticos(db: Session, employee: Employee) -> list[Viatico]:
 
 def _after_money(session: BotSession) -> str:
     """Tras elegir el dinero se pide la foto, salvo que ya la tengamos (la envió desde el menú)."""
-    return DESCRIPTION if _data(session).get("document_id") else PHOTO
+    return _next_state(session, PHOTO) if _data(session).get("document_id") else PHOTO
+
+
+# Pasos con datos de la factura: si el empleado los responde o corrige, el gasto ya no es "solo IA".
+INVOICE_DATA_STATES = {DESCRIPTION, TOTAL, UNIT_PRICE, ISSUE_DATE, NIT, SUPPLIER_NAME, INVOICE_NUMBER}
+
+
+def _next_state(session: BotSession, current: str) -> str:
+    """El paso que sigue a `current`, saltando los que ya llenó la IA."""
+    data = _data(session)
+    skip = set(data.get("ai_skip") or [])
+    for state in FIELD_ORDER[FIELD_ORDER.index(current) + 1:]:
+        if state not in skip:
+            return state
+        if state == NIT and data.get("supplier_nit"):
+            if not data.get("supplier_name"):
+                return SUPPLIER_NAME  # la IA leyó el NIT pero no el nombre
+            if data.get("ai_new_supplier"):
+                return RUT  # proveedor nuevo: se ofrece adjuntar su RUT (opcional)
+    return CONFIRM
 
 
 # --- Inicio ---
@@ -184,10 +210,13 @@ def handle(db: Session, session: BotSession, employee: Employee, incoming: Incom
     chat = incoming.chat_id
     if incoming.file is not None:  # las fotos y archivos se atienden en cualquier paso
         return _on_file(db, session, employee, incoming)
+    answered = session.state
     try:
-        result = _HANDLERS[session.state](db, session, employee, incoming)
+        result = _HANDLERS[answered](db, session, employee, incoming)
     except InvalidInput as error:
         return [send_message(chat, error.message), *prompt(db, session, employee, chat)]
+    if answered in INVOICE_DATA_STATES and is_active(session) and _data(session).get("ai"):
+        _set(session, ai_edited=True)  # el empleado escribió o corrigió un dato de la factura
     if isinstance(result, list):
         return result
     return [*result, *prompt(db, session, employee, chat)]
@@ -202,8 +231,8 @@ def _advance(session: BotSession, current: str) -> tuple[Any, ...]:
     if data.get("editing"):
         session.state = CONFIRM
         _set(session, editing=False)
-    elif current in FIELD_ORDER and FIELD_ORDER.index(current) + 1 < len(FIELD_ORDER):
-        session.state = FIELD_ORDER[FIELD_ORDER.index(current) + 1]
+    elif current in FIELD_ORDER:
+        session.state = _next_state(session, current)
     else:
         session.state = CONFIRM
     return ()
@@ -266,6 +295,9 @@ def _on_total(db, session, employee, incoming):
     unit = _data(session).get("unit_price")
     if unit and Decimal(unit) > total:
         _set(session, unit_price=None)  # el unitario anterior ya no es coherente
+    if total != Decimal(_data(session).get("total") or "-1"):
+        # Los productos leídos por la IA ya no cuadran con el total corregido.
+        _set(session, items=None)
     _set(session, total=str(total))
     return _advance(session, TOTAL)
 
@@ -336,6 +368,8 @@ def _on_photo(db, session, employee, incoming):
     if incoming.callback_data != CB_NO_PHOTO:
         raise InvalidInput(msg.EXP_ASK_PHOTO)
     _set(session, document_id=None, document_gps=False)  # al editar: quita la foto
+    if _data(session).get("ai"):
+        _set(session, ai_edited=True)
     return _advance(session, PHOTO)
 
 
@@ -440,10 +474,13 @@ def _summary(db: Session, session: BotSession) -> str:
     def money(key: str) -> str:
         return format_cop(Decimal(data[key])) if data.get(key) else "—"
 
+    ai = bool(data.get("ai"))
     return msg.EXP_SUMMARY.format(
+        title=msg.EXP_SUMMARY_TITLE_AI if ai else msg.EXP_SUMMARY_TITLE,
+        question=msg.EXP_SUMMARY_QUESTION_AI if ai else msg.EXP_SUMMARY_QUESTION,
         description=html.escape(data.get("description") or "—"),
         total=money("total"),
-        unit_price=money("unit_price"),
+        amounts=_amounts_block(data, money),
         issue_date=date.fromisoformat(data["issue_date"]).strftime("%d/%m/%Y") if data.get("issue_date") else "—",
         supplier=supplier,
         invoice_number=html.escape(data.get("invoice_number") or "—"),
@@ -453,6 +490,31 @@ def _summary(db: Session, session: BotSession) -> str:
         photo=("Adjunta ✅ (con GPS)" if data.get("document_gps") else "Adjunta ✅")
         if data.get("document_id") else "Sin foto",
     )
+
+
+MAX_SUMMARY_ITEMS = 6
+
+
+def _amounts_block(data: dict[str, Any], money) -> str:
+    """Valor unitario (manual) o, si la IA los leyó, los productos y los impuestos."""
+    if data.get("unit_price") or not data.get("items"):
+        block = msg.EXP_SUMMARY_UNIT.format(unit_price=money("unit_price"))
+    else:
+        items = data["items"]
+        lines = [
+            msg.EXP_SUMMARY_ITEM.format(
+                quantity=format(Decimal(i["quantity"]).normalize(), "f"),
+                description=html.escape(i["description"][:40]),
+                line_total=format_cop(Decimal(i["line_total"])) if i.get("line_total") else "—",
+            )
+            for i in items[:MAX_SUMMARY_ITEMS]
+        ]
+        if len(items) > MAX_SUMMARY_ITEMS:
+            lines.append(msg.EXP_SUMMARY_MORE_ITEMS.format(count=len(items) - MAX_SUMMARY_ITEMS))
+        block = msg.EXP_SUMMARY_ITEMS.format(lines="\n".join(lines))
+    if data.get("subtotal") or data.get("tax_total"):
+        block += msg.EXP_SUMMARY_TAXES.format(subtotal=money("subtotal"), tax_total=money("tax_total"))
+    return block
 
 
 def _location_label(data: dict[str, Any]) -> str:
@@ -484,6 +546,11 @@ def _save(db: Session, session: BotSession, employee: Employee, chat_id: int) ->
                 "category_id": uuid.UUID(data["category_id"]) if data.get("category_id") else None,
                 "viatico_id": viatico_id,
                 "payment_source": PaymentSource(data["payment_source"]),
+                # Datos que solo llegan leídos por la IA:
+                "issue_time": time.fromisoformat(data["issue_time"]) if data.get("issue_time") else None,
+                "subtotal": Decimal(data["subtotal"]) if data.get("subtotal") else None,
+                "tax_total": Decimal(data["tax_total"]) if data.get("tax_total") else None,
+                "cufe": data.get("cufe"),
             }
             if data.get("location"):
                 fields["location_lat"] = Decimal(data["location"]["lat"])
@@ -495,10 +562,16 @@ def _save(db: Session, session: BotSession, employee: Employee, chat_id: int) ->
                 quantity = (fields["total"] / unit).quantize(Decimal("0.001"))
                 items = [{"description": data["description"][:255], "quantity": quantity,
                           "unit_price": unit, "line_total": fields["total"]}]
+            elif data.get("items"):  # productos leídos por la IA
+                items = [{"description": i["description"], "quantity": Decimal(i["quantity"]),
+                          "unit_price": Decimal(i["unit_price"]) if i.get("unit_price") else None,
+                          "line_total": Decimal(i["line_total"]) if i.get("line_total") else None}
+                         for i in data["items"]]
             expense = expenses.create_expense(
                 db, employee, fields, items=items,
                 supplier_nit=data.get("supplier_nit"), supplier_name=data.get("supplier_name"),
                 actor=actor, location_source=LocationSource.TELEGRAM if data.get("location") else None,
+                data_source=_data_source(data),
             )
             if data.get("document_id"):
                 document = db.get(Document, uuid.UUID(data["document_id"]))
@@ -533,6 +606,12 @@ def _save(db: Session, session: BotSession, employee: Employee, chat_id: int) ->
     session.state = MENU
     session.data = {}
     return [send_message(chat_id, text), menu_action(chat_id, employee)]
+
+
+def _data_source(data: dict[str, Any]) -> DataSource:
+    if not data.get("ai"):
+        return DataSource.MANUAL
+    return DataSource.MIXED if data.get("ai_edited") else DataSource.AI
 
 
 def cancel(session: BotSession, employee: Employee, chat_id: int) -> list[Action]:
@@ -576,8 +655,13 @@ def start_with_file(db: Session, session: BotSession, employee: Employee, incomi
 def on_file_stored(
     db: Session, session: BotSession, employee: Employee, chat_id: int,
     document: Document, purpose: str,
+    storage: Storage | None = None, vision: VisionModel | None = None,
 ) -> list[Action]:
-    """El archivo YA está guardado en documents. Se continúa la conversación."""
+    """El archivo YA está guardado en documents. Se continúa la conversación.
+
+    Si hay `vision` (la IA), la foto de la factura se lee antes de seguir. Sin ella
+    (IA desactivada, p. ej. en las pruebas) se continúa con los datos manuales.
+    """
     if not is_active(session):
         # Canceló mientras se descargaba: el archivo queda guardado igual (nunca se pierde).
         return [send_message(chat_id, msg.EXP_FILE_NO_FLOW), menu_action(chat_id, employee)]
@@ -591,8 +675,69 @@ def on_file_stored(
     if document.expense_id is not None:
         return [send_message(chat_id, msg.EXP_PHOTO_IN_OTHER_EXPENSE), *prompt(db, session, employee, chat_id)]
     has_gps = bool((document.exif or {}).get("gps"))
+    note = msg.EXP_PHOTO_SAVED_GPS if has_gps else msg.EXP_PHOTO_SAVED
+
+    if vision is not None and storage is not None:
+        result = extraction.analyze_document(db, storage, document, vision)
+        if result.outcome == ExtractionOutcome.NOT_INVOICE:
+            # Escenario C: no se asocia, pero el documento y el intento quedan registrados.
+            return [send_message(chat_id, msg.EXP_AI_NOT_INVOICE), *prompt(db, session, employee, chat_id)]
+        if result.outcome == ExtractionOutcome.EXTRACTED:  # escenario A
+            _set(session, document_id=str(document.id), document_gps=has_gps)
+            _prefill(db, session, employee, result.invoice, str(result.extraction.id))
+            if _data(session).get("editing"):  # cambió la foto desde ✏️ Editar
+                _set(session, editing=False)
+                session.state = CONFIRM
+            elif session.state == PHOTO:
+                session.state = _next_state(session, PHOTO)
+            note = msg.EXP_AI_READ_GPS if has_gps else msg.EXP_AI_READ
+            return [send_message(chat_id, note), *prompt(db, session, employee, chat_id)]
+        # Escenario B (ilegible) o falla técnica: la foto queda guardada y se sigue a mano.
+        note = msg.EXP_AI_UNREADABLE if result.outcome == ExtractionOutcome.UNREADABLE else msg.EXP_AI_FAILED
+        if _data(session).get("ai"):
+            _set(session, ai_edited=True)  # la foto nueva no confirma lo que leyó la IA antes
+
     _set(session, document_id=str(document.id), document_gps=has_gps)
     if session.state == PHOTO:
         _advance(session, PHOTO)
-    note = msg.EXP_PHOTO_SAVED_GPS if has_gps else msg.EXP_PHOTO_SAVED
     return [send_message(chat_id, note), *prompt(db, session, employee, chat_id)]
+
+
+def _prefill(db: Session, session: BotSession, employee: Employee, invoice: InvoiceData,
+             extraction_id: str) -> None:
+    """Escenario A: llena el borrador con lo que leyó la IA y marca qué pasos saltar."""
+    skip = [TOTAL, UNIT_PRICE, NIT, INVOICE_NUMBER]  # la IA ya los revisó (aunque vengan vacíos)
+    values: dict[str, Any] = {
+        "ai": True, "ai_edited": False, "ai_extraction_id": extraction_id,
+        "total": str(invoice.total), "unit_price": None,
+        "items": [{"description": i.description, "quantity": str(i.quantity),
+                   "unit_price": str(i.unit_price) if i.unit_price is not None else None,
+                   "line_total": str(i.line_total) if i.line_total is not None else None}
+                  for i in invoice.items] or None,
+        "subtotal": str(invoice.subtotal) if invoice.subtotal is not None else None,
+        "tax_total": str(invoice.tax_total) if invoice.tax_total is not None else None,
+        "issue_time": invoice.issue_time.isoformat() if invoice.issue_time else None,
+        "cufe": invoice.cufe,
+        "invoice_number": invoice.invoice_number,
+        "supplier_nit": invoice.supplier_nit, "supplier_name": None, "ai_new_supplier": False,
+    }
+    if invoice.description:
+        values["description"] = invoice.description
+        skip.append(DESCRIPTION)
+    if invoice.issue_date:
+        values["issue_date"] = invoice.issue_date.isoformat()
+        skip.append(ISSUE_DATE)
+    if invoice.supplier_nit:
+        number = invoice.supplier_nit.split("-")[0]
+        known = db.scalar(select(Supplier).where(Supplier.company_id == employee.company_id, Supplier.nit == number))
+        if known is not None and not known.name.startswith("NIT "):
+            values["supplier_name"] = known.name  # el nombre registrado manda sobre el leído
+        else:
+            values["supplier_name"] = invoice.supplier_name
+            values["ai_new_supplier"] = True
+    if invoice.category:
+        category = next((c for c in catalog.list_categories(db, employee.company_id) if c.name == invoice.category), None)
+        if category is not None:
+            values.update(category_id=str(category.id), category_name=category.name)
+            skip.append(CATEGORY)
+    _set(session, **values, ai_skip=skip)

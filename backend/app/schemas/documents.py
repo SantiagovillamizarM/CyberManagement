@@ -6,7 +6,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from app.models import Document
-from app.models.enums import DocumentKind, ProcessingStatus
+from app.models.enums import DocumentKind, ExtractionOutcome, ProcessingStatus
 
 
 class GpsOut(BaseModel):
@@ -50,3 +50,28 @@ class DocumentList(BaseModel):
 class UploadResult(BaseModel):
     document: DocumentOut
     duplicate: bool  # True = ese mismo archivo ya estaba guardado
+
+
+class ExtractionOut(BaseModel):
+    """Un intento de lectura con IA. `parsed` son los datos ya validados por Python."""
+
+    id: uuid.UUID
+    document_id: uuid.UUID
+    model: str
+    prompt_version: str
+    outcome: ExtractionOutcome
+    is_invoice: bool | None
+    confidence: Decimal | None
+    parsed: dict[str, Any] | None
+    error: str | None
+    latency_ms: int | None
+    tokens_in: int | None
+    tokens_out: int | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True, "protected_namespaces": ()}
+
+
+class AnalysisOut(BaseModel):
+    document: DocumentOut
+    extraction: ExtractionOut

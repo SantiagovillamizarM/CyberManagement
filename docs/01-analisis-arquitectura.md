@@ -64,8 +64,12 @@ factura válida.
   - [ ] 4.2 Registro de gastos conversacional (código y pruebas listos; falta la prueba con Telegram real)
   - [ ] 4.3 Fotos y archivos desde Telegram (código y pruebas listos; falta la prueba con Telegram real)
   - [ ] 4.4 Corrección de gastos desde el bot (código y pruebas listos; falta la prueba con Telegram real)
-- [ ] Fase 5 — Inteligencia artificial
-- [ ] Fase 6 — n8n
+- [x] Fase 5 — Inteligencia artificial (ver [10-inteligencia-artificial.md](10-inteligencia-artificial.md); código completo, falta la prueba con Telegram real)
+  - [x] 5.1 Servicio de lectura con IA, validación y registro de intentos
+  - [x] 5.2 Escenarios A, B y C en la conversación del bot
+- [ ] Fase 6 — n8n (ver [11-notificaciones-y-n8n.md](11-notificaciones-y-n8n.md))
+  - [x] 6.1 Avisos por Telegram (bandeja de salida) y recordatorios
+  - [ ] 6.2 Workflows: entrega de avisos, recordatorios diarios, manejo de errores
 - [ ] Fase 7 — Panel web (adelantada; ver [09-panel-web.md](09-panel-web.md))
   - [x] 7.1 Diseño base, login y empleados
   - [ ] 7.2 Facturas y gastos
