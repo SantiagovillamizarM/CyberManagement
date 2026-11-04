@@ -68,18 +68,67 @@ code,
   white-space: nowrap;
 }
 
-/* Movimiento solo en respuesta a lo que hace la persona (abrir, confirmar). */
+/* ---------- Movimiento ----------
+   Solo transform y opacity: la GPU los mueve sin repintar, así todo va a la
+   frecuencia de la pantalla (120/144 Hz) en vez de dar saltos. */
 @keyframes pop {
-  from { opacity: 0; transform: scale(0.98) translateY(6px); }
+  from { opacity: 0; transform: translate3d(0, 8px, 0) scale(0.97); }
   to { opacity: 1; transform: none; }
 }
 
+@keyframes pop-out {
+  to { opacity: 0; transform: translate3d(0, 6px, 0) scale(0.97); }
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translate3d(0, 16px, 0); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes fade-out { to { opacity: 0; } }
+
 @keyframes shimmer {
-  from { background-position: -200% 0; }
-  to { background-position: 200% 0; }
+  from { transform: translate3d(-100%, 0, 0); }
+  to { transform: translate3d(100%, 0, 0); }
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Entrada de página: el contenido sube en cascada, bloque por bloque. */
+.content > *,
+.stagger > * {
+  animation: rise var(--enter) var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 70ms + 30ms);
+}
+
+.content > :nth-child(2), .stagger > :nth-child(2) { --i: 1; }
+.content > :nth-child(3), .stagger > :nth-child(3) { --i: 2; }
+.content > :nth-child(4), .stagger > :nth-child(4) { --i: 3; }
+.content > :nth-child(5), .stagger > :nth-child(5) { --i: 4; }
+.content > :nth-child(6), .stagger > :nth-child(6) { --i: 5; }
+.content > :nth-child(7), .stagger > :nth-child(7) { --i: 6; }
+.content > :nth-child(n + 8), .stagger > :nth-child(n + 8) { --i: 7; }
+
+/* Salida de página: el contenido se desvanece hacia arriba; el menú se queda quieto. */
+.content {
+  transition: opacity var(--leave) var(--ease-in-out), transform var(--leave) var(--ease-in-out);
+}
+
+body.is-leaving .content {
+  opacity: 0;
+  transform: translate3d(0, -10px, 0);
+}
+
+/* Salida completa (cerrar sesión, entrar al panel). */
+body > * {
+  transition: opacity 360ms var(--ease-in-out), transform 360ms var(--ease-in-out);
+}
+
+body.is-leaving-all > * {
+  opacity: 0;
+  transform: scale(0.985);
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -87,4 +136,27 @@ code,
     animation-delay: 0ms !important;
     transition-duration: 1ms !important;
   }
+}
+
+/* ---------- Cambio de página: View Transitions del navegador ----------
+   El navegador mantiene la página anterior en pantalla hasta que la nueva está lista
+   y hace el fundido en la GPU: no hay "golpe" ni instante en blanco. El menú y la
+   barra superior tienen nombre propio, así quedan fijos mientras cambia el contenido. */
+@view-transition { navigation: auto; }
+
+.sidebar { view-transition-name: cm-sidebar; }
+.topbar { view-transition-name: cm-topbar; }
+
+::view-transition-old(root) { animation: vt-out 240ms var(--ease-in-out) both; }
+::view-transition-new(root) { animation: vt-in 560ms var(--ease-out) both; }
+::view-transition-group(cm-sidebar),
+::view-transition-group(cm-topbar) { animation-duration: 0s; }
+::view-transition-old(cm-sidebar), ::view-transition-old(cm-topbar) { animation: none; opacity: 0; }
+::view-transition-new(cm-sidebar), ::view-transition-new(cm-topbar) { animation: none; }
+
+@keyframes vt-out { to { opacity: 0; transform: translate3d(0, -8px, 0) scale(0.995); } }
+@keyframes vt-in { from { opacity: 0; transform: translate3d(0, 10px, 0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }

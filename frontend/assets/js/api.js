@@ -79,6 +79,7 @@ export async function api(path, { method = "GET", body } = {}) {
   }
 
   if (response.status === 401 && !path.startsWith("/auth/login")) {
+    try { sessionStorage.removeItem("cm_admin"); } catch { /* sin almacenamiento */ }
     const next = encodeURIComponent(location.pathname + location.search);
     location.replace(`/login.html?next=${next}`);
     throw new ApiError(401, "Sesión expirada");

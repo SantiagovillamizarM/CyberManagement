@@ -73,6 +73,8 @@ const ICONS = {
   clock: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Zm0-16v6l4 2",
   mail: "M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm18 2-10 7L2 6",
   lock: "M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2ZM7 11V7a5 5 0 0 1 10 0v4",
+  "trend-up": "m22 7-8.5 8.5-5-5L2 17M16 7h6v6",
+  "trend-down": "m22 17-8.5-8.5-5 5L2 7M16 17h6v-6",
 };
 
 export function icon(name) {

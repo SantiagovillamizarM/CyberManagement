@@ -151,8 +151,7 @@
   font-size: 2.1rem;
   font-weight: 720;
   font-stretch: var(--display-stretch);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.02em; /* cifras proporcionales: en grande, tabular se ve flojo */
   line-height: 1;
 }
 .metric-hint { margin-top: 8px; font-size: 0.82rem; color: var(--text-faint); }
@@ -209,7 +208,7 @@
 .badge-warning { background: var(--warning-soft); color: var(--warning); }
 .badge-danger { background: var(--danger-soft); color: var(--danger); }
 .badge-info { background: var(--electric-soft); color: var(--ice); }
-.badge-violet { background: var(--cyan-soft); color: var(--cyan); } /* "en revisión" */
+.badge-violet { background: rgba(144, 133, 233, 0.14); color: #b1a9f2; } /* "en revisión": mismo tono que en los gráficos */
 .badge-success::before, .badge-info::before { box-shadow: 0 0 8px currentColor; }
 
 /* ---------- Tablas ---------- */
@@ -269,12 +268,21 @@
 .empty svg { width: 38px; height: 38px; color: var(--line-strong); }
 .empty strong { color: var(--text); font-stretch: var(--display-stretch); }
 
+/* El brillo se desliza con transform (sin repintar el fondo en cada cuadro). */
 .skeleton {
+  position: relative;
+  overflow: hidden;
   height: 14px;
   border-radius: 6px;
-  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.3s linear infinite;
+  background: var(--surface-2);
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(169, 196, 255, 0.07), transparent);
+  animation: shimmer 1.4s var(--ease-in-out) infinite;
 }
 
 .skeletons { display: grid; gap: 14px; }
@@ -289,7 +297,11 @@
   padding: 16px;
   background: rgba(3, 5, 10, 0.78);
   backdrop-filter: blur(8px);
+  animation: fade-in 260ms var(--ease-out) both;
 }
+
+.modal-backdrop.is-closing { pointer-events: none; animation: fade-out 200ms var(--ease-in-out) forwards; }
+.modal-backdrop.is-closing .modal { animation: pop-out 200ms var(--ease-in-out) forwards; }
 
 .modal {
   width: min(520px, 100%);
@@ -299,7 +311,7 @@
   border-radius: var(--radius-dialog);
   background: var(--night);
   box-shadow: inset 0 1px 0 var(--highlight), var(--shadow), 0 0 80px -30px rgba(47, 107, 255, 0.6);
-  animation: pop 200ms ease both;
+  animation: pop 360ms var(--ease-out) both;
 }
 
 .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 22px 0; }
@@ -377,9 +389,11 @@
   border-radius: var(--radius-control);
   background: var(--surface-2);
   box-shadow: var(--shadow);
-  animation: pop 200ms ease both;
+  animation: pop 420ms var(--ease-out) both;
   font-size: 0.9rem;
 }
+
+.toast.is-leaving { animation: pop-out 260ms var(--ease-in-out) forwards; }
 
 .toast svg { width: 18px; height: 18px; flex: none; margin-top: 2px; }
 .toast.success svg { color: var(--success); }

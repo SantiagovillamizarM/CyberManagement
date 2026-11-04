@@ -1,0 +1,491 @@
+/* Portada (login): fondo vivo + carrusel de escenas + formulario.
+   Solo la carga login.html. Todo el movimiento usa transform y opacity, que la GPU
+   compone sin repintar: así va a la frecuencia de la pantalla (120/144 Hz). */
+
+.auth {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(380px, 1fr);
+  min-height: 100vh;
+}
+
+.auth-scene {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 40px;
+  border-right: 1px solid var(--line);
+  background:
+    radial-gradient(520px 520px at 50% 44%, rgba(47, 107, 255, 0.16), transparent 70%),
+    radial-gradient(900px 300px at 50% 105%, rgba(29, 71, 201, 0.22), transparent 70%),
+    #03050a;
+}
+
+/* Rejilla de puntos que se desvanece: la "mesa" sobre la que ocurren las escenas. */
+.auth-scene::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: radial-gradient(rgba(169, 196, 255, 0.14) 1px, transparent 1px);
+  background-size: 26px 26px;
+  mask-image: radial-gradient(circle at 50% 46%, #000 0%, transparent 62%);
+}
+
+.auth-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 48px clamp(28px, 5vw, 72px);
+}
+
+.auth-panel .brand { padding: 0 0 48px; }
+.auth-panel h1 { font-size: clamp(2.3rem, 1.6rem + 2vw, 3.3rem); font-weight: 800; letter-spacing: -0.035em; line-height: 1.02; }
+.auth-panel .lead { max-width: 40ch; margin: 16px 0 34px; color: var(--text-muted); font-size: 1rem; }
+.auth-form { max-width: 380px; }
+.auth-foot { max-width: 380px; margin-top: 20px; font-size: 0.8rem; color: var(--text-faint); }
+.auth-copy { margin-top: auto; padding-top: 40px; font-size: 0.8rem; color: var(--text-faint); }
+
+/* Error de login: una sacudida corta, como quien niega con la cabeza. */
+.auth-form.is-shaking { animation: shake 420ms var(--ease-out); }
+@keyframes shake {
+  20% { transform: translate3d(-7px, 0, 0); }
+  40% { transform: translate3d(6px, 0, 0); }
+  60% { transform: translate3d(-4px, 0, 0); }
+  80% { transform: translate3d(2px, 0, 0); }
+}
+
+/* Credenciales correctas: el botón se vuelve "verificado" antes de entrar al panel. */
+.btn-primary.is-done {
+  background: #16b884;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 0 0 1px rgba(43, 217, 160, 0.55), 0 10px 34px -10px rgba(43, 217, 160, 0.9);
+  transition: background 300ms var(--ease-out), box-shadow 300ms var(--ease-out);
+}
+
+@media (max-width: 960px) {
+  .auth { grid-template-columns: 1fr; }
+  .auth-scene { min-height: 380px; padding: 24px 16px 20px; border-right: none; border-bottom: 1px solid var(--line); }
+  .auth-panel { padding: 32px 20px 40px; }
+  .auth-panel .brand { padding-bottom: 28px; }
+  .auth-form, .auth-foot { max-width: none; }
+}
+
+/* ===================== Fondo vivo (discreto, detrás de las escenas) ===================== */
+
+.ambient { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+
+/* Luces difusas que derivan muy despacio. Radial-gradient en vez de filter: blur (más liviano). */
+.ambient-blob {
+  position: absolute;
+  border-radius: 50%;
+  will-change: transform;
+}
+
+.b1 {
+  left: 8%; top: 6%; width: 460px; height: 460px;
+  background: radial-gradient(circle, rgba(47, 107, 255, 0.22), transparent 68%);
+  animation: drift-a 22s var(--ease-in-out) infinite alternate;
+}
+
+.b2 {
+  right: -6%; bottom: 4%; width: 520px; height: 520px;
+  background: radial-gradient(circle, rgba(92, 225, 255, 0.09), transparent 66%);
+  animation: drift-b 28s var(--ease-in-out) infinite alternate;
+}
+
+.b3 {
+  left: 30%; bottom: -18%; width: 600px; height: 380px;
+  background: radial-gradient(ellipse, rgba(29, 71, 201, 0.25), transparent 70%);
+  animation: drift-c 34s var(--ease-in-out) infinite alternate;
+}
+
+@keyframes drift-a { to { transform: translate3d(120px, 70px, 0) scale(1.12); } }
+@keyframes drift-b { to { transform: translate3d(-110px, -60px, 0) scale(0.92); } }
+@keyframes drift-c { to { transform: translate3d(-80px, -40px, 0) scale(1.08); } }
+
+/* Dos órbitas finas, inclinadas, con un punto de luz que las recorre. */
+.ambient-orbit {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  border: 1px solid rgba(77, 141, 255, 0.11);
+  border-radius: 50%;
+  will-change: transform;
+}
+
+.ambient-orbit::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #8db8ff;
+  box-shadow: 0 0 12px 3px rgba(77, 141, 255, 0.75);
+}
+
+.o1 { width: 560px; height: 560px; margin: -280px 0 0 -280px; animation: orbit 46s linear infinite; }
+.o2 { width: 760px; height: 760px; margin: -380px 0 0 -380px; border-color: rgba(77, 141, 255, 0.07); animation: orbit 72s linear infinite reverse; }
+.o2::after { width: 4px; height: 4px; top: -2px; opacity: 0.7; }
+
+@keyframes orbit {
+  from { transform: rotateX(68deg) rotateZ(0deg); }
+  to { transform: rotateX(68deg) rotateZ(360deg); }
+}
+
+/* Un barrido de luz diagonal que cruza cada cierto tiempo. */
+.ambient-sweep {
+  position: absolute;
+  top: -20%;
+  left: 0;
+  width: 160px;
+  height: 140%;
+  background: linear-gradient(90deg, transparent, rgba(141, 184, 255, 0.07), transparent);
+  transform: translate3d(-200px, 0, 0) rotate(18deg);
+  animation: sweep 11s var(--ease-in-out) 2s infinite;
+  will-change: transform;
+}
+
+@keyframes sweep {
+  0% { transform: translate3d(-260px, 0, 0) rotate(18deg); }
+  45%, 100% { transform: translate3d(1300px, 0, 0) rotate(18deg); }
+}
+
+/* Chispas que suben y se apagan, cada una con su posición y su ritmo. */
+.ambient-spark {
+  position: absolute;
+  bottom: -10px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #a9c4ff;
+  box-shadow: 0 0 8px 2px rgba(77, 141, 255, 0.7);
+  opacity: 0;
+  animation: rise-spark var(--t, 13s) linear var(--d, 0s) infinite;
+  will-change: transform, opacity;
+}
+
+.sp1 { left: 12%; --d: 0s; --t: 11s; }
+.sp2 { left: 24%; --d: 1.7s; --t: 13.5s; }
+.sp3 { left: 37%; --d: 3.4s; --t: 16s; }
+.sp4 { left: 49%; --d: 5.1s; --t: 18.5s; }
+.sp5 { left: 61%; --d: 6.8s; --t: 11s; }
+.sp6 { left: 70%; --d: 8.5s; --t: 13.5s; }
+.sp7 { left: 83%; --d: 1.2s; --t: 16s; }
+.sp8 { left: 91%; --d: 2.9s; --t: 18.5s; }
+
+@keyframes rise-spark {
+  0% { transform: translate3d(0, 0, 0); opacity: 0; }
+  12% { opacity: 0.85; }
+  70% { opacity: 0.5; }
+  100% { transform: translate3d(18px, -560px, 0); opacity: 0; }
+}
+
+/* ===================== Carrusel ===================== */
+
+.carousel { display: grid; justify-items: center; gap: 26px; width: 100%; }
+
+.carousel-stage {
+  position: relative;
+  width: min(330px, 76vw);
+  aspect-ratio: 300 / 420;
+}
+
+.carousel-slide {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: translate3d(28px, 0, 0) scale(0.97);
+  transition: opacity 520ms var(--ease-in-out), transform 900ms var(--ease-out);
+  pointer-events: none;
+}
+
+.carousel-slide.is-active { opacity: 1; transform: none; pointer-events: auto; }
+.carousel-slide.is-leaving { opacity: 0; transform: translate3d(-28px, 0, 0) scale(0.97); }
+
+.scene { display: block; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 30px 50px rgba(0, 0, 0, 0.6)); }
+
+/* Los textos: todos en la misma celda; solo el activo se ve. */
+.carousel-captions { display: grid; width: min(420px, 90%); text-align: center; }
+
+.carousel-caption {
+  grid-area: 1 / 1;
+  opacity: 0;
+  transform: translate3d(0, 8px, 0);
+  transition: opacity 420ms var(--ease-in-out), transform 620ms var(--ease-out);
+}
+
+.carousel-caption.is-active { opacity: 1; transform: none; transition-delay: 120ms; }
+.carousel-caption.is-leaving { opacity: 0; transform: translate3d(0, -8px, 0); transition-delay: 0ms; }
+.carousel-caption strong { display: block; font-size: 1.15rem; font-weight: 720; font-stretch: var(--display-stretch); letter-spacing: -0.01em; }
+.carousel-caption p { margin-top: 6px; color: var(--text-muted); font-size: 0.92rem; }
+
+/* Los puntos: el activo es una barra que se llena con el tiempo de la escena. */
+.carousel-dots { display: flex; gap: 8px; }
+
+.carousel-dot {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  transition: width 520ms var(--ease-out);
+}
+
+.carousel-dot.is-active { width: 56px; }
+
+.carousel-bar {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: rgba(135, 148, 178, 0.28);
+}
+
+.carousel-dot:hover .carousel-bar { background: rgba(135, 148, 178, 0.45); }
+
+.carousel-progress {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--electric-glow);
+  box-shadow: 0 0 10px rgba(77, 141, 255, 0.9);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+.carousel-dot.is-active .carousel-progress { transform: scaleX(1); }
+.carousel-dot.is-active.is-auto .carousel-progress { animation: fill-bar var(--interval, 6500ms) linear both; }
+/* Misma especificidad que la regla de arriba + va después: si no, el atajo "animation"
+   de esa regla reinicia el play-state y la pausa no funciona. */
+.carousel.is-paused .carousel-dot.is-active.is-auto .carousel-progress { animation-play-state: paused; }
+
+@keyframes fill-bar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+@media (max-width: 960px) {
+  .carousel { gap: 16px; }
+  .carousel-stage { width: auto; height: 250px; }
+  .carousel-caption p { display: none; }
+}
+
+/* ===================== Escena 1: la factura que se escanea ===================== */
+
+.rc-paper { fill: url(#rc-paper); stroke: rgba(77, 141, 255, 0.45); stroke-width: 1; }
+.rc-rule { stroke: rgba(135, 148, 178, 0.28); stroke-width: 1; stroke-dasharray: 3 4; }
+.rc-ph { fill: rgba(135, 148, 178, 0.2); }
+.rc-text { font-family: var(--font); font-size: 12.5px; fill: #c9d6f5; font-variant-numeric: tabular-nums; }
+.rc-muted { fill: #7f8db0; }
+.rc-store { font-size: 15px; font-weight: 700; font-stretch: 112%; fill: #f4f7ff; }
+.rc-total-label { font-size: 13px; font-weight: 700; letter-spacing: 0.04em; fill: #f4f7ff; }
+.rc-total { font-size: 22px; font-weight: 800; font-stretch: 115%; fill: #fff; }
+.rc-total-blurred { fill: #4d8dff; }
+.rc-stamp-box { fill: rgba(43, 217, 160, 0.12); stroke: rgba(43, 217, 160, 0.6); }
+.rc-stamp-text { font-family: var(--font); font-size: 12px; font-weight: 700; fill: var(--success); }
+
+/* El haz va a velocidad CONSTANTE: el retraso de cada renglón (.rc-r1…8) es
+   0,35 s + 2,7 s × (y + 30) / 482, para que el dato aparezca justo cuando pasa. */
+.rc-beam { animation: beam 2.7s linear 0.35s both; }
+.rc-beam-line { fill: #8db8ff; }
+.rc-beam-trail { fill: url(#rc-trail); }
+
+@keyframes beam {
+  0% { transform: translate3d(0, -30px, 0); opacity: 0; }
+  8% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { transform: translate3d(0, 452px, 0); opacity: 0; }
+}
+
+.rc-row .rc-ph { animation: ph-out 0.3s ease forwards; }
+.rc-row .rc-val { opacity: 0; animation: val-in 0.5s var(--ease-out) forwards; }
+.rc-row .rc-val .rc-text { animation: settle 0.9s ease forwards; }
+
+@keyframes ph-out { to { opacity: 0; } }
+@keyframes val-in { from { opacity: 0; transform: translate3d(0, 3px, 0); } to { opacity: 1; transform: none; } }
+@keyframes settle { 0% { fill: #9cc0ff; } 100% { } }
+
+.rc-r1 * { animation-delay: 0.78s !important; }
+.rc-r2 * { animation-delay: 0.92s !important; }
+.rc-r3 * { animation-delay: 1.2s !important; }
+.rc-r4 * { animation-delay: 1.4s !important; }
+.rc-r5 * { animation-delay: 1.56s !important; }
+.rc-r6 * { animation-delay: 1.86s !important; }
+.rc-r7 * { animation-delay: 2.02s !important; }
+.rc-r8 * { animation-delay: 2.4s !important; }
+
+.rc-total-glow { opacity: 0; animation: val-in 0.6s var(--ease-out) 2.55s forwards; }
+.rc-stamp { opacity: 0; transform-box: fill-box; transform-origin: center; animation: stamp 0.55s var(--ease-spring) 3.05s forwards; }
+
+@keyframes stamp {
+  from { opacity: 0; transform: scale(1.25); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* ===================== Escena 2: los datos se guardan ===================== */
+
+.vs-paper { fill: url(#vs-body); stroke: rgba(77, 141, 255, 0.45); }
+.vs-line { fill: rgba(135, 148, 178, 0.26); }
+.vs-line.is-lit { fill: #4d8dff; }
+
+.vs-card { animation: val-in 0.6s var(--ease-out) 0.1s both; }
+
+/* Cada dato sale de la factura, se posa en fila y cae al cilindro. */
+.vs-chip { opacity: 0; animation: chip-travel 2.6s var(--ease-in-out) forwards; }
+.vs-chip rect { fill: #0e1730; stroke: rgba(77, 141, 255, 0.65); }
+.vs-chip-text { font-family: var(--font); font-size: 11.5px; font-weight: 600; fill: #dbe5ff; font-variant-numeric: tabular-nums; }
+
+.vs-c1 { --dx: 90px; animation-delay: 0.5s; }
+.vs-c2 { --dx: 0px; animation-delay: 0.8s; }
+.vs-c3 { --dx: -90px; animation-delay: 1.1s; }
+
+@keyframes chip-travel {
+  0% { opacity: 0; transform: translate3d(var(--dx), -62px, 0) scale(0.55); }
+  22% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+  58% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+  100% { opacity: 0; transform: translate3d(var(--dx), 112px, 0) scale(0.4); }
+}
+
+.vs-cyl { fill: url(#vs-body); stroke: var(--line-strong); }
+.vs-ring { fill: none; stroke: rgba(77, 141, 255, 0.22); stroke-width: 1.2; }
+.vs-top { fill: #16233f; stroke: rgba(77, 141, 255, 0.55); }
+
+/* Los anillos se encienden a medida que llegan los datos. */
+.vs-lit { stroke: #4d8dff; stroke-width: 2; opacity: 0; animation: lit 0.6s var(--ease-out) forwards; }
+.vs-l1 { animation-delay: 2.35s; }
+.vs-l2 { animation-delay: 2.65s; }
+.vs-l3 { animation-delay: 2.95s; }
+@keyframes lit { to { opacity: 1; } }
+
+.vs-pulse {
+  fill: none;
+  stroke: #8db8ff;
+  stroke-width: 1.5;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ripple 1.4s var(--ease-out) 2.4s 2;
+}
+
+@keyframes ripple {
+  0% { opacity: 0.85; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.35); }
+}
+
+.vs-badge { opacity: 0; transform-box: fill-box; transform-origin: center; animation: stamp 0.55s var(--ease-spring) 3.4s forwards; }
+.vs-badge rect { fill: rgba(43, 217, 160, 0.12); stroke: rgba(43, 217, 160, 0.6); }
+.vs-badge-text { font-family: var(--font); font-size: 12px; font-weight: 700; fill: var(--success); }
+
+/* ===================== Escena 3: el viático ===================== */
+
+.ws-panel { fill: rgba(10, 17, 34, 0.88); stroke: var(--line-strong); }
+.ws-kicker { font-family: var(--font); font-size: 11.5px; fill: #7f8db0; }
+.ws-name { font-family: var(--font); font-size: 18px; font-weight: 700; font-stretch: 115%; fill: #f4f7ff; }
+
+.ws-ring-track { fill: none; stroke: #142040; stroke-width: 12; }
+.ws-arc {
+  fill: none;
+  stroke: url(#ws-grad);
+  stroke-width: 12;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  filter: drop-shadow(0 0 8px rgba(77, 141, 255, 0.7));
+  animation: gauge 1.7s var(--ease-out) 0.45s forwards;
+}
+@keyframes gauge { to { stroke-dashoffset: 36; } } /* 64 % gastado */
+
+.ws-pct { font-family: var(--font); font-size: 30px; font-weight: 800; font-stretch: 118%; fill: #fff; font-variant-numeric: tabular-nums; }
+.ws-pct-sub { font-family: var(--font); font-size: 12px; fill: #8794b2; }
+.ws-gauge text { opacity: 0; animation: val-in 0.6s var(--ease-out) 1.2s forwards; }
+
+.ws-row { opacity: 0; animation: val-in 0.6s var(--ease-out) forwards; }
+.ws-r1 { animation-delay: 0.7s; }
+.ws-r2 { animation-delay: 1.1s; }
+.ws-label { font-family: var(--font); font-size: 12px; fill: #8794b2; }
+.ws-value { font-family: var(--font); font-size: 13px; font-weight: 650; fill: #f4f7ff; font-variant-numeric: tabular-nums; }
+.ws-track { fill: #142040; }
+.ws-fill { transform-box: fill-box; transform-origin: left center; transform: scaleX(0); animation: grow 1.3s var(--ease-out) forwards; }
+.ws-r1 .ws-fill { animation-delay: 0.9s; }
+.ws-r2 .ws-fill { animation-delay: 1.3s; }
+.ws-fill.is-full { fill: #2f6bff; }
+.ws-fill.is-spent { fill: #5ce1ff; }
+@keyframes grow { to { transform: scaleX(1); } }
+
+.ws-left { opacity: 0; transform-box: fill-box; transform-origin: center; animation: stamp 0.55s var(--ease-spring) 2.4s forwards; }
+.ws-left rect { fill: rgba(43, 217, 160, 0.1); stroke: rgba(43, 217, 160, 0.5); }
+.ws-left-label { font-family: var(--font); font-size: 12px; fill: var(--success); }
+.ws-left-value { font-family: var(--font); font-size: 16px; font-weight: 800; fill: var(--success); font-variant-numeric: tabular-nums; }
+
+/* ===================== Escena 4: la conversación con el bot ===================== */
+
+.cs-panel { fill: rgba(10, 17, 34, 0.9); stroke: var(--line-strong); }
+.cs-title { font-family: var(--font); font-size: 13px; font-weight: 700; fill: #f4f7ff; }
+.cs-online { font-family: var(--font); font-size: 11px; fill: var(--success); }
+.cs-divider { stroke: var(--line); }
+
+.cs-me rect:first-child { fill: #2f6bff; }
+.cs-bot rect:first-child { fill: #142040; stroke: var(--line-strong); }
+.cs-photo { fill: #dde6ff; }
+.cs-photo-line { fill: #8794b2; }
+.cs-text { font-family: var(--font); font-size: 12px; fill: #dbe5ff; }
+.cs-muted { fill: #8794b2; }
+.cs-strong { font-weight: 650; fill: #f4f7ff; }
+.cs-total { font-weight: 750; fill: #a9c4ff; font-variant-numeric: tabular-nums; }
+.cs-on-me { font-weight: 650; fill: #fff; }
+
+/* Los mensajes aparecen uno tras otro, como en una conversación real. */
+.cs-bubble { opacity: 0; transform-box: fill-box; animation: bubble 0.55s var(--ease-spring) forwards; }
+.cs-me { transform-origin: right bottom; }
+.cs-bot { transform-origin: left bottom; }
+.cs-b1 { animation-delay: 0.4s; }
+.cs-b2 { animation-delay: 2.35s; }
+.cs-b3 { animation-delay: 3.4s; }
+.cs-b4 { animation-delay: 4.3s; }
+
+@keyframes bubble {
+  from { opacity: 0; transform: translate3d(0, 10px, 0) scale(0.86); }
+  to { opacity: 1; transform: none; }
+}
+
+/* El bot "escribe": aparece, sus puntos saltan y desaparece cuando llega la respuesta. */
+.cs-typing { opacity: 0; animation: typing 1.25s ease 1.1s forwards; }
+.cs-typing rect { fill: #142040; stroke: var(--line-strong); }
+.cs-dot { fill: #8794b2; transform-box: fill-box; transform-origin: center; animation: hop 0.9s ease-in-out infinite; }
+.cs-dot:nth-of-type(2) { animation-delay: 0.15s; }
+.cs-dot:nth-of-type(3) { animation-delay: 0.3s; }
+
+@keyframes typing {
+  0% { opacity: 0; }
+  15%, 85% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes hop {
+  0%, 60%, 100% { transform: translate3d(0, 0, 0); }
+  30% { transform: translate3d(0, -4px, 0); }
+}
+
+.cs-input rect { fill: #0e1730; stroke: var(--line); }
+.cs-placeholder { font-family: var(--font); font-size: 11.5px; fill: var(--text-faint); }
+
+/* ===================== Movimiento reducido ===================== */
+/* El fondo queda quieto y cada escena aparece ya resuelta (sin el recorrido). */
+@media (prefers-reduced-motion: reduce) {
+  .ambient-blob, .ambient-orbit, .ambient-sweep, .ambient-spark { animation: none !important; }
+  .ambient-sweep, .ambient-spark { display: none; }
+  .rc-beam, .cs-typing { display: none; }
+  .rc-row .rc-ph { opacity: 0; animation: none; }
+  .rc-row .rc-val, .rc-total-glow, .rc-stamp, .vs-card, .vs-lit, .vs-badge,
+  .ws-gauge text, .ws-row, .ws-left, .cs-bubble { opacity: 1; animation: none; transform: none; }
+  .rc-row .rc-val .rc-text { animation: none; }
+  .vs-chip, .vs-pulse { display: none; }
+  .ws-arc { animation: none; stroke-dashoffset: 36; }
+  .ws-fill { animation: none; transform: none; }
+  .carousel-slide, .carousel-caption { transition: none; }
+}

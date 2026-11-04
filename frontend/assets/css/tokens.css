@@ -62,5 +62,12 @@
   /* Medidas */
   --sidebar-width: 248px;
   --topbar-height: 64px;
-  --speed: 160ms;
+  --speed: 180ms;
+
+  /* Movimiento: curvas que arrancan rápido y frenan despacio (nada lineal ni brusco). */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --enter: 680ms;
+  --leave: 220ms;
 }

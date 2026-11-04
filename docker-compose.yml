@@ -98,7 +98,8 @@ services:
   tunnel:
     image: cloudflare/cloudflared:2026.10.7
     profiles: ["tunnel"]
-    restart: unless-stopped
+    # "no": un túnel hacia internet NUNCA debe reabrirse solo al reiniciar Docker.
+    restart: "no"
     command: ["tunnel", "--no-autoupdate", "--url", "http://n8n:5678"]
     depends_on:
       - n8n

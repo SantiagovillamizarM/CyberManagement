@@ -50,7 +50,7 @@
   color: var(--text-muted);
   font-weight: 560;
   text-decoration: none;
-  transition: background var(--speed), color var(--speed);
+  transition: background var(--speed) var(--ease-out), color var(--speed) var(--ease-out);
 }
 
 .nav a svg { width: 19px; height: 19px; }
@@ -58,8 +58,9 @@
 
 /* Sección activa: un indicador encendido a la izquierda. */
 .nav a.active { background: var(--electric-faint); color: #fff; }
+.nav a svg { transition: color var(--speed) var(--ease-out); }
 .nav a.active svg { color: var(--electric-glow); filter: drop-shadow(0 0 6px rgba(77, 141, 255, 0.8)); }
-.nav a.active::before {
+.nav a::before {
   content: "";
   position: absolute;
   left: -14px;
@@ -69,7 +70,11 @@
   border-radius: 0 3px 3px 0;
   background: var(--electric-glow);
   box-shadow: 0 0 12px 1px rgba(77, 141, 255, 0.9);
+  opacity: 0;
+  transform: scaleY(0.2);
+  transition: opacity 260ms var(--ease-out), transform 420ms var(--ease-spring);
 }
+.nav a.active::before { opacity: 1; transform: none; }
 
 .nav a.disabled { opacity: 0.45; pointer-events: none; }
 .nav .soon {
@@ -146,6 +151,21 @@
 
 .content { max-width: 1240px; padding: 34px 32px 48px; margin: 0 auto; }
 
+/* Primera vista tras iniciar sesión: el menú y la barra entran deslizándose. */
+.app.is-entering .sidebar { animation: slide-in 760ms var(--ease-out) both; }
+.app.is-entering .topbar { animation: drop-in 700ms var(--ease-out) 90ms both; }
+.app.is-entering .nav > * { animation: rise 600ms var(--ease-out) both; animation-delay: calc(var(--n, 0) * 40ms + 160ms); }
+.app.is-entering .nav > :nth-child(2) { --n: 1; }
+.app.is-entering .nav > :nth-child(3) { --n: 2; }
+.app.is-entering .nav > :nth-child(4) { --n: 3; }
+.app.is-entering .nav > :nth-child(5) { --n: 4; }
+.app.is-entering .nav > :nth-child(6) { --n: 5; }
+.app.is-entering .nav > :nth-child(7) { --n: 6; }
+.app.is-entering .content > * { animation-delay: calc(var(--i, 0) * 70ms + 260ms); }
+
+@keyframes slide-in { from { opacity: 0; transform: translate3d(-28px, 0, 0); } }
+@keyframes drop-in { from { opacity: 0; transform: translate3d(0, -14px, 0); } }
+
 .page-header {
   display: flex;
   flex-wrap: wrap;
@@ -169,151 +189,11 @@
     z-index: 40;
     width: var(--sidebar-width);
     transform: translateX(-100%);
-    transition: transform var(--speed) ease;
+    transition: transform 420ms var(--ease-out), box-shadow 420ms var(--ease-out);
   }
   .app.menu-open .sidebar { transform: none; box-shadow: var(--shadow); }
   .menu-toggle { display: inline-grid; }
   .topbar { padding: 0 16px; }
   .content { padding: 24px 16px 40px; }
   .user-chip .who { display: none; }
-}
-
-/* ---------- Login: la escena del escaneo + el formulario ---------- */
-.auth {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(380px, 1fr);
-  min-height: 100vh;
-}
-
-.auth-scene {
-  position: relative;
-  display: grid;
-  grid-template-rows: 1fr auto;
-  place-items: center;
-  overflow: hidden;
-  padding: 40px;
-  border-right: 1px solid var(--line);
-  background:
-    radial-gradient(520px 520px at 50% 46%, rgba(47, 107, 255, 0.2), transparent 70%),
-    radial-gradient(900px 300px at 50% 105%, rgba(29, 71, 201, 0.25), transparent 70%),
-    #03050a;
-}
-
-/* Rejilla de puntos que se desvanece: la "mesa" sobre la que se escanea. */
-.auth-scene::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(rgba(169, 196, 255, 0.16) 1px, transparent 1px);
-  background-size: 26px 26px;
-  mask-image: radial-gradient(circle at 50% 50%, #000 0%, transparent 62%);
-}
-
-.auth-scene > * { position: relative; z-index: 1; }
-
-.auth-facts {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px 28px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: 0.86rem;
-  color: var(--text-muted);
-}
-
-.auth-facts li { display: flex; gap: 9px; align-items: center; }
-.auth-facts svg { width: 17px; height: 17px; color: var(--electric-glow); }
-
-.auth-panel {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 48px clamp(28px, 5vw, 72px);
-}
-
-.auth-panel .brand { padding: 0 0 48px; }
-.auth-panel h1 { font-size: clamp(2.3rem, 1.6rem + 2vw, 3.3rem); font-weight: 800; letter-spacing: -0.035em; line-height: 1.02; }
-.auth-panel .lead { max-width: 40ch; margin: 16px 0 34px; color: var(--text-muted); font-size: 1rem; }
-.auth-form { max-width: 380px; }
-.auth-foot { max-width: 380px; margin-top: 20px; font-size: 0.8rem; color: var(--text-faint); }
-.auth-copy { margin-top: auto; padding-top: 40px; font-size: 0.8rem; color: var(--text-faint); }
-
-@media (max-width: 960px) {
-  .auth { grid-template-columns: 1fr; }
-  .auth-scene { min-height: 300px; padding: 24px 16px; border-right: none; border-bottom: 1px solid var(--line); }
-  .auth-facts { display: none; }
-  .auth-panel { padding: 32px 20px 40px; }
-  .auth-panel .brand { padding-bottom: 28px; }
-  .auth-form, .auth-foot { max-width: none; }
-}
-
-/* ---------- La factura y su escaneo (único momento animado del producto) ---------- */
-.receipt { width: min(330px, 78vw); height: auto; overflow: visible; }
-.auth-scene .receipt { filter: drop-shadow(0 30px 50px rgba(0, 0, 0, 0.6)); }
-
-@media (max-width: 960px) {
-  .receipt { width: auto; height: 250px; }
-}
-
-.rc-paper { fill: url(#rc-paper); stroke: rgba(77, 141, 255, 0.45); stroke-width: 1; }
-.rc-rule { stroke: rgba(135, 148, 178, 0.28); stroke-width: 1; stroke-dasharray: 3 4; }
-.rc-ph { fill: rgba(135, 148, 178, 0.2); }
-.rc-text { font-family: var(--font); font-size: 12.5px; fill: #c9d6f5; font-variant-numeric: tabular-nums; }
-.rc-muted { fill: #7f8db0; }
-.rc-store { font-size: 15px; font-weight: 700; font-stretch: 112%; fill: #f4f7ff; }
-.rc-total-label { font-size: 13px; font-weight: 700; letter-spacing: 0.04em; fill: #f4f7ff; }
-.rc-total { font-size: 22px; font-weight: 800; font-stretch: 115%; fill: #fff; }
-.rc-total-blurred { fill: #4d8dff; }
-.rc-stamp-box { fill: rgba(43, 217, 160, 0.12); stroke: rgba(43, 217, 160, 0.6); }
-.rc-stamp-text { font-family: var(--font); font-size: 12px; font-weight: 700; fill: var(--success); }
-
-/* El haz: una línea de luz con su estela, de arriba abajo. Velocidad CONSTANTE: los
-   tiempos de cada renglón (.rc-r1…8) están calculados para que el dato aparezca
-   justo cuando el haz pasa: retraso = 0,35 s + 2,7 s × (y + 30) / 482. */
-.rc-beam { animation: beam 2.7s linear 0.35s both; }
-.rc-beam-line { fill: #8db8ff; }
-.rc-beam-trail { fill: url(#rc-trail); }
-
-@keyframes beam {
-  0% { transform: translateY(-30px); opacity: 0; }
-  8% { opacity: 1; }
-  88% { opacity: 1; }
-  100% { transform: translateY(452px); opacity: 0; }
-}
-
-/* Cada renglón: el borrón se apaga y aparece el dato, justo cuando pasa el haz. */
-.rc-row .rc-ph { animation: ph-out 0.3s ease forwards; }
-.rc-row .rc-val { opacity: 0; animation: val-in 0.45s ease forwards; }
-.rc-row .rc-val .rc-text { animation: settle 0.9s ease forwards; }
-
-@keyframes ph-out { to { opacity: 0; } }
-@keyframes val-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
-@keyframes settle { 0% { fill: #9cc0ff; } 100% { } }
-
-.rc-r1 * { animation-delay: 0.78s !important; }
-.rc-r2 * { animation-delay: 0.92s !important; }
-.rc-r3 * { animation-delay: 1.2s !important; }
-.rc-r4 * { animation-delay: 1.4s !important; }
-.rc-r5 * { animation-delay: 1.56s !important; }
-.rc-r6 * { animation-delay: 1.86s !important; }
-.rc-r7 * { animation-delay: 2.02s !important; }
-.rc-r8 * { animation-delay: 2.4s !important; }
-
-/* Al final, el total queda encendido y aparece el sello de verificado. */
-.rc-total-glow { opacity: 0; animation: val-in 0.6s ease 2.55s forwards; }
-.rc-stamp { opacity: 0; transform-box: fill-box; transform-origin: center; animation: stamp 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) 3.05s forwards; }
-
-@keyframes stamp {
-  from { opacity: 0; transform: scale(1.25); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-/* Sin animaciones: la factura aparece ya verificada y quieta. */
-@media (prefers-reduced-motion: reduce) {
-  .rc-beam { display: none; }
-  .rc-row .rc-ph { opacity: 0; animation: none; }
-  .rc-row .rc-val, .rc-total-glow, .rc-stamp { opacity: 1; animation: none; transform: none; }
-  .rc-row .rc-val .rc-text { animation: none; }
 }

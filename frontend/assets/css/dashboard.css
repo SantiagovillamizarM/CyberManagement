@@ -1,0 +1,262 @@
+/* Dashboard: cifra principal + tendencia, indicadores y gráficos.
+   Marcas finas, cuadrícula de 1 px sólida y discreta, texto en colores de texto.
+   Las animaciones de entrada usan solo transform/opacity y ocurren una vez al cargar. */
+
+/* Colores de estado (paleta validada con el skill dataviz sobre #0a1122: todas las
+   comprobaciones pasan; el orden evita que dos tonos parecidos queden juntos). */
+:root {
+  --st-approved: #199e70;
+  --st-submitted: #2f6bff;
+  --st-pending: #c98500;
+  --st-review: #9085e9;
+  --st-rejected: #e66767;
+}
+
+[data-tone="approved"] { --tone: var(--st-approved); }
+[data-tone="submitted"] { --tone: var(--st-submitted); }
+[data-tone="pending"] { --tone: var(--st-pending); }
+[data-tone="review"] { --tone: var(--st-review); }
+[data-tone="rejected"] { --tone: var(--st-rejected); }
+
+/* ---------- Cifra principal ---------- */
+.hero { padding: 24px 24px 12px; overflow: hidden; position: relative; }
+
+/* Una luz tenue detrás de la cifra: el dato que manda. */
+.hero::before {
+  content: "";
+  position: absolute;
+  top: -140px;
+  left: -60px;
+  width: 520px;
+  height: 320px;
+  background: radial-gradient(closest-side, rgba(47, 107, 255, 0.16), transparent);
+  pointer-events: none;
+}
+
+.hero-head { position: relative; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.hero-label { color: var(--text-muted); font-size: 0.92rem; }
+
+.hero-value {
+  margin-top: 6px;
+  font-size: clamp(2.6rem, 2rem + 2vw, 3.6rem); /* ≥ 48 px: la única cifra principal de la vista */
+  font-weight: 780;
+  font-stretch: var(--display-stretch);
+  letter-spacing: -0.035em;
+  line-height: 1;
+  /* Cifras proporcionales: en tamaño grande, tabular-nums se ve flojo. */
+  text-shadow: 0 0 40px rgba(77, 141, 255, 0.35);
+}
+
+.hero-delta { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; font-size: 0.86rem; color: var(--text-muted); }
+.hero-delta svg { width: 16px; height: 16px; }
+.hero-delta.is-up svg { color: var(--warning); } /* gastar más no es "bueno": se marca en ámbar */
+.hero-delta.is-down svg { color: var(--success); }
+.hero-note { max-width: 32ch; color: var(--text-faint); font-size: 0.8rem; text-align: right; }
+
+/* ---------- Área de tendencia ---------- */
+.area-chart { position: relative; margin-top: 14px; }
+.area-plot { position: relative; width: 100%; height: 200px; border-radius: var(--radius-control); cursor: crosshair; }
+.area-plot:focus-visible { outline-offset: 4px; }
+.ac-svg { display: block; overflow: visible; }
+.ac-grid { stroke: rgba(135, 148, 178, 0.13); stroke-width: 1; }
+.ac-tick { font-family: var(--font); font-size: 11px; fill: var(--text-faint); font-variant-numeric: tabular-nums; }
+
+.ac-line {
+  fill: none;
+  stroke: #4d8dff;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 6px rgba(77, 141, 255, 0.55));
+  /* Se dibuja de izquierda a derecha al cargar (pathLength = 1). */
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw 1.4s var(--ease-out) 0.25s forwards;
+}
+
+.ac-area { fill: url(#ac-wash); opacity: 0; animation: fade-to 1s var(--ease-out) 0.7s forwards; }
+.ac-end { fill: #4d8dff; stroke: var(--night); stroke-width: 2; opacity: 0; animation: fade-to 0.4s ease 1.5s forwards; }
+.ac-end-label { font-family: var(--font); font-size: 12px; font-weight: 650; fill: var(--text); opacity: 0; animation: fade-to 0.4s ease 1.55s forwards; }
+
+/* Lectura: una línea vertical que sigue al cursor y un punto sobre la serie. */
+.ac-cross { stroke: rgba(169, 196, 255, 0.45); stroke-width: 1; opacity: 0; transition: opacity 160ms var(--ease-out), transform 120ms var(--ease-out); }
+.ac-cross-dot { fill: #8db8ff; stroke: var(--night); stroke-width: 2; opacity: 0; transition: opacity 160ms var(--ease-out); }
+.is-reading .ac-cross, .is-reading .ac-cross-dot { opacity: 1; }
+
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes fade-to { to { opacity: 1; } }
+
+/* ---------- Tooltip ---------- */
+.chart-tip {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 70;
+  display: grid;
+  gap: 2px;
+  min-width: 120px;
+  padding: 9px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
+  background: rgba(10, 17, 34, 0.96);
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate3d(var(--tx, 0), var(--ty, 0), 0) scale(0.96);
+  transition: opacity 140ms var(--ease-out), transform 160ms var(--ease-out);
+}
+
+.chart-tip.is-visible { opacity: 1; transform: translate3d(var(--tx, 0), var(--ty, 0), 0); }
+.chart-tip strong { font-size: 1rem; font-weight: 720; font-variant-numeric: tabular-nums; }
+.chart-tip span { display: flex; align-items: center; gap: 7px; font-size: 0.8rem; color: var(--text-muted); }
+.chart-tip-key { width: 12px; height: 3px; border-radius: 2px; background: var(--tone, var(--electric-glow)); }
+
+/* ---------- Rejilla de tarjetas ---------- */
+.dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
+.dash-grid.is-wide-right { grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); }
+.dash-card { display: flex; flex-direction: column; min-width: 0; }
+.dash-card-head { padding: 18px 20px 0; }
+.dash-card-head p { margin-top: 4px; font-size: 0.82rem; color: var(--text-faint); }
+.dash-card > :not(.dash-card-head) { margin: 16px 20px 20px; }
+.dash-card > .table-wrap { margin: 12px 0 0; }
+
+/* En la tabla de recientes: nombres, fechas, montos y estados en una sola línea. */
+.dash-card .table td:not(:nth-child(2)) { white-space: nowrap; }
+
+.dash-empty { display: flex; gap: 10px; align-items: center; padding: 18px 0; color: var(--text-muted); font-size: 0.9rem; }
+.dash-empty svg { width: 22px; height: 22px; flex: none; color: var(--line-strong); }
+
+@media (max-width: 1100px) {
+  .dash-grid, .dash-grid.is-wide-right { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .hero-note { text-align: left; }
+}
+
+/* ---------- Barra segmentada (facturas por estado) ---------- */
+.seg { display: grid; gap: 16px; }
+.seg-bar { display: flex; gap: 2px; height: 28px; } /* 2 px de "aire" entre partes, no un borde */
+
+.seg-block {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: var(--grow, 1) 1 0;
+  min-width: 6px;
+  padding: 0 9px;
+  border-radius: 4px;
+  background: var(--tone);
+  transform-origin: left center;
+  animation: grow-x 0.9s var(--ease-out) both;
+  animation-delay: calc(var(--order, 0) * 90ms + 200ms);
+  transition: filter 160ms var(--ease-out);
+  cursor: default;
+}
+
+.seg-block:hover, .seg-block:focus-visible { filter: brightness(1.18); }
+.seg-label { font-size: 0.8rem; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; }
+.seg-block[data-tone="pending"] .seg-label { color: #0b0b0b; } /* sobre ámbar, texto oscuro */
+
+/* Variante delgada (con lista de cifras debajo): 8 px, extremos redondeados y sin texto. */
+.seg-bar.is-thin { height: 8px; }
+.seg-bar.is-thin .seg-block { min-width: 4px; padding: 0; border-radius: 2px; }
+.seg-bar.is-thin .seg-block:first-child { border-radius: 8px 2px 2px 8px; }
+.seg-bar.is-thin .seg-block:last-child { border-radius: 2px 8px 8px 2px; }
+.seg-bar.is-thin .seg-block:only-child { border-radius: 8px; }
+
+/* La lista hace de leyenda: muestra cada estado con su cantidad y su monto. */
+.seg-list { display: grid; margin: 0; padding: 0; list-style: none; }
+.seg-list li {
+  display: grid;
+  grid-template-columns: auto 1fr auto minmax(96px, auto);
+  gap: 12px;
+  align-items: center;
+  padding: 11px 0;
+  border-top: 1px solid var(--line);
+  font-size: 0.9rem;
+}
+.seg-list li:first-child { border-top: none; }
+.seg-name { color: var(--text-muted); }
+.seg-count { color: var(--text-faint); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+.seg-detail { font-weight: 650; text-align: right; font-variant-numeric: tabular-nums; }
+
+.seg-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0; padding: 0; list-style: none; font-size: 0.84rem; color: var(--text-muted); }
+.seg-legend li { display: flex; align-items: center; gap: 8px; }
+.seg-key { width: 10px; height: 10px; border-radius: 3px; background: var(--tone); }
+.seg-empty { height: 28px; border-radius: 4px; background: var(--surface-2); }
+
+@keyframes grow-x { from { transform: scaleX(0); opacity: 0; } }
+
+/* ---------- Barras ordenadas (gasto por categoría) ---------- */
+.rank { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+
+.rank-row {
+  display: grid;
+  grid-template-columns: minmax(84px, 128px) 1fr auto;
+  gap: 12px;
+  align-items: center;
+  border-radius: var(--radius-control);
+  outline-offset: 4px;
+}
+
+.rank-label { overflow: hidden; color: var(--text-muted); font-size: 0.88rem; text-overflow: ellipsis; white-space: nowrap; }
+.rank-track { position: relative; height: 12px; } /* barra ≤ 24 px: el resto es aire */
+
+.rank-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--w, 0) * 100%);
+  min-width: 4px;
+  border-radius: 0 4px 4px 0; /* recta en la línea base, redondeada en el dato */
+  background: var(--electric);
+  transform-origin: left center;
+  animation: grow-x 1s var(--ease-out) both;
+  animation-delay: calc(var(--order, 0) * 70ms + 250ms);
+  transition: filter 160ms var(--ease-out);
+}
+
+.rank-row:hover .rank-fill, .rank-row:focus-visible .rank-fill { filter: brightness(1.25) drop-shadow(0 0 8px rgba(77, 141, 255, 0.7)); }
+.rank-value { font-size: 0.88rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+
+/* ---------- Viáticos (medidores) ---------- */
+.vt-list { display: grid; gap: 18px; margin: 0; padding: 0; list-style: none; }
+.vt-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-end; }
+.vt-left { display: grid; text-align: right; line-height: 1.2; }
+.vt-left strong { font-size: 1rem; font-weight: 720; }
+.vt-left span { font-size: 0.75rem; color: var(--text-faint); }
+.vt-foot { display: flex; justify-content: space-between; gap: 10px; margin-top: 6px; }
+.vt-flag { display: inline-flex; gap: 6px; align-items: center; font-size: 0.78rem; font-weight: 600; }
+.vt-flag svg { width: 14px; height: 14px; }
+.vt-flag.is-warning { color: var(--warning); }
+.vt-flag.is-danger { color: var(--danger); }
+
+.meter {
+  position: relative;
+  display: block;
+  height: 8px;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: rgba(47, 107, 255, 0.16); /* pista: un paso más claro del mismo azul */
+}
+
+.meter-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--w, 0) * 100%);
+  border-radius: inherit;
+  background: var(--electric);
+  transform-origin: left center;
+  animation: grow-x 1.1s var(--ease-out) 0.3s both;
+}
+
+.meter-fill[data-level="warning"] { background: var(--warning); }
+.meter-fill[data-level="danger"] { background: var(--danger); }
+
+/* Movimiento reducido: todo aparece ya en su estado final. */
+@media (prefers-reduced-motion: reduce) {
+  .ac-line { stroke-dashoffset: 0; animation: none; }
+  .ac-area, .ac-end, .ac-end-label { opacity: 1; animation: none; }
+  .seg-block, .rank-fill, .meter-fill { animation: none; }
+}

@@ -1,5 +1,8 @@
 """Paso 7.1 en navegador real: login, menú y sección de empleados (CA-2 a CA-8)."""
 
+# Nota: las ventanas se cierran con animación; mientras tanto conviven un
+# instante con la siguiente. Las pruebas siempre apuntan a la ventana ABIERTA.
+
 import re
 
 from playwright.sync_api import Page, expect
@@ -15,7 +18,7 @@ def create_employee(page: Page, first="Jhon", last="Prueba", internal_id="E2E-00
     page.fill("#f-last_name", last)
     page.fill("#f-internal_id", internal_id)
     with page.expect_response(lambda r: r.url.endswith("/api/v1/employees") and r.request.method == "POST"):
-        page.click(".modal button[type=submit]")
+        page.click(".modal-backdrop:not(.is-closing) .modal button[type=submit]")
     expect(page.locator("tr", has_text=internal_id)).to_be_visible()
 
 
@@ -64,7 +67,7 @@ def test_ca3_shell_and_logout(page: Page, credentials: Credentials) -> None:
     expect(page.locator(".nav a.active")).to_have_text("Dashboard")
     expect(page.locator(".user-chip strong")).to_have_text("Administrador")
     page.click("button[aria-label='Cerrar sesión']")
-    page.click(".modal .btn-primary")
+    page.click(".modal-backdrop:not(.is-closing) .modal .btn-primary")
     page.wait_for_url(re.compile(r"/login\.html"))
 
     page.goto(f"{BASE_URL}/empleados.html")  # la sesión ya no sirve
@@ -89,14 +92,14 @@ def test_ca6_validation_messages_in_spanish(page: Page, credentials: Credentials
     page.click("text=Nuevo empleado")
 
     with page.expect_response(lambda r: r.url.endswith("/api/v1/employees")):
-        page.click(".modal button[type=submit]")
+        page.click(".modal-backdrop:not(.is-closing) .modal button[type=submit]")
     expect(page.locator("#e-first_name")).to_have_text("Este campo es obligatorio")
 
     page.fill("#f-first_name", "Jhon")
     page.fill("#f-last_name", "Prueba")
     page.fill("#f-internal_id", "E2E 001")  # con espacio
     with page.expect_response(lambda r: r.url.endswith("/api/v1/employees")):
-        page.click(".modal button[type=submit]")
+        page.click(".modal-backdrop:not(.is-closing) .modal button[type=submit]")
     expect(page.locator("#e-internal_id")).to_contain_text("sin espacios")
     expect(page.locator("#e-first_name")).to_have_text("")  # el error anterior se limpia
 
@@ -109,7 +112,7 @@ def test_ca6_duplicate_internal_id(page: Page, credentials: Credentials) -> None
     page.fill("#f-first_name", "Otro")
     page.fill("#f-last_name", "Empleado")
     page.fill("#f-internal_id", "E2E-001")
-    page.click(".modal button[type=submit]")
+    page.click(".modal-backdrop:not(.is-closing) .modal button[type=submit]")
 
     expect(page.locator("#e-internal_id")).to_have_text("Ya existe un empleado con esa identificación interna")
 
@@ -121,11 +124,11 @@ def test_ca4_edit_and_deactivate(page: Page, credentials: Credentials) -> None:
 
     row.locator("button[aria-label=Editar]").click()
     page.fill("#f-first_name", "John")
-    page.click(".modal button[type=submit]")
+    page.click(".modal-backdrop:not(.is-closing) .modal button[type=submit]")
     expect(row).to_contain_text("John Prueba")
 
     row.locator("button[aria-label=Desactivar]").click()
-    page.click(".modal .btn-danger")
+    page.click(".modal-backdrop:not(.is-closing) .modal .btn-danger")
     expect(row.locator(".badge").first).to_have_text("Inactivo")
     expect(row.locator("button[aria-label='Generar código de registro']")).to_have_count(0)
 
@@ -141,15 +144,16 @@ def test_ca5_code_shown_once_then_only_hint(page: Page, credentials: Credentials
     row.locator("button[aria-label='Generar código de registro']").click()
     code = page.locator("[data-testid=registration-code]").inner_text()
     assert CODE.match(code), code
-    expect(page.locator(".modal")).to_contain_text("Sirve una sola vez")
+    expect(page.locator(".modal-backdrop:not(.is-closing) .modal")).to_contain_text("Sirve una sola vez")
     page.click("text=Listo")
 
     expect(row).to_contain_text("Código pendiente")
     expect(row).to_contain_text(code[-4:])  # la pista
+    expect(page.locator(".modal-backdrop")).to_have_count(0)  # terminó la animación de cierre
     assert code not in page.content()  # el código completo ya no aparece en ningún lado
 
     row.locator("button[aria-label='Revocar código']").click()
-    page.click(".modal .btn-danger")
+    page.click(".modal-backdrop:not(.is-closing) .modal .btn-danger")
     expect(row).to_contain_text("Sin vincular")
 
 

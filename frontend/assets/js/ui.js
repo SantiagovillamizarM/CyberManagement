@@ -42,7 +42,16 @@ export function toast(message, type = "success") {
   toastHost ||= document.body.appendChild(h("div", { class: "toasts", role: "status", "aria-live": "polite" }));
   const item = h("div", { class: `toast ${type}` }, icon(type === "error" ? "alert" : "check"), h("div", {}, message));
   toastHost.append(item);
-  setTimeout(() => item.remove(), type === "error" ? 6000 : 3500);
+  setTimeout(() => leaveThenRemove(item), type === "error" ? 6000 : 3500);
+}
+
+/** Anima la salida (clase is-leaving / is-closing en el CSS) y luego quita el elemento. */
+function leaveThenRemove(el, className = "is-leaving") {
+  el.classList.add(className);
+  let done = false;
+  const remove = () => { if (!done) { done = true; el.remove(); } };
+  el.addEventListener("animationend", (event) => event.target === el && remove());
+  setTimeout(remove, 400); // por si la animación no corre (pestaña oculta, movimiento reducido)
 }
 
 // ---------- Ventanas modales ----------
@@ -64,9 +73,17 @@ export function openModal({ title, content = [], actions = [], onClose } = {}) {
   );
   const backdrop = h("div", { class: "modal-backdrop" }, modal);
 
+  let closed = false;
   function close() {
+    if (closed) return;
+    closed = true;
+    // Mientras se anima su salida, la ventana ya no recibe foco, clics ni teclado
+    // (puede convivir un instante con la siguiente ventana que se abre).
+    backdrop.inert = true;
+    // Suelta sus id: si se abre otra ventana con el mismo formulario, no habrá id duplicados.
+    for (const el of backdrop.querySelectorAll("[id]")) el.removeAttribute("id");
     document.removeEventListener("keydown", onKey);
-    backdrop.remove();
+    leaveThenRemove(backdrop, "is-closing");
     previousFocus?.focus?.();
     onClose?.();
   }

@@ -1,4 +1,6 @@
-"""Rediseño: portada con escaneo, fuente propia y fechas correctas."""
+"""Rediseño: portada con carrusel, fuente propia, fechas correctas y gráficos del dashboard."""
+
+from datetime import date
 
 import httpx
 from playwright.sync_api import Browser, Page, expect
@@ -54,4 +56,70 @@ def test_invoice_date_is_not_shifted_by_timezone(page: Page, credentials: Creden
             # registros y la API no permitiría eliminarlo: se limpia directo en la BD de desarrollo.
             with engine.begin() as conn:
                 conn.execute(text("DELETE FROM expenses WHERE id = :id"), {"id": expense["id"]})
+                conn.execute(text("DELETE FROM employees WHERE id = :id"), {"id": employee["id"]})
+
+
+# --- Carrusel de la portada ---
+
+
+def test_carousel_shows_four_features_and_advances(page: Page) -> None:
+    page.goto(f"{BASE_URL}/login.html")
+    page.wait_for_selector(".carousel-slide.is-active .scene")
+
+    titles = page.eval_on_selector_all(".carousel-caption strong", "els => els.map(e => e.textContent)")
+    assert titles == ["Escanea facturas", "Guarda cada dato", "Viáticos al día", "Todo por Telegram"]
+    # Margen amplio: depende del reloj real (6,5 s por escena) y el equipo puede estar ocupado.
+    expect(page.locator(".carousel-caption.is-active strong")).to_have_text("Guarda cada dato", timeout=13000)
+
+
+def test_carousel_pauses_while_hovered(page: Page) -> None:
+    page.goto(f"{BASE_URL}/login.html")
+    page.wait_for_selector(".carousel-stage")
+    page.hover(".carousel-stage")
+
+    page.wait_for_timeout(7500)  # más que la duración de una escena (6,5 s)
+
+    expect(page.locator(".carousel-caption.is-active strong")).to_have_text("Escanea facturas")
+
+
+def test_ambient_sparks_are_spread_without_inline_styles(page: Page) -> None:
+    """Regresión: las chispas usaban style="" en línea, que la CSP bloquea (quedaban amontonadas)."""
+    page.goto(f"{BASE_URL}/login.html")
+    page.wait_for_selector(".ambient-spark")
+
+    lefts = page.eval_on_selector_all(".ambient-spark", "els => els.map(e => Math.round(e.getBoundingClientRect().left))")
+    assert len(set(lefts)) == len(lefts) == 8
+    assert page.locator(".ambient-spark[style]").count() == 0  # su posición viene de clases CSS
+
+
+# --- Gráficos del dashboard ---
+
+
+def test_dashboard_charts_render_and_read_values(page: Page, credentials: Credentials) -> None:
+    with httpx.Client(base_url=f"{BASE_URL}/api/v1") as api:
+        headers = {"X-CSRF-Token": api.post("/auth/login", json={
+            "email": credentials.admin_email, "password": credentials.admin_initial_password}).json()["csrf_token"]}
+        employee = api.post("/employees", json={"first_name": "Gráfico", "last_name": "Prueba",
+                                                "internal_id": "E2E-CHART"}, headers=headers).json()
+        category = api.get("/categories").json()[0]
+        for n, total in enumerate(["40000", "75000"]):
+            expense = api.post("/expenses", json={"employee_id": employee["id"], "description": f"E2E gráfico {n}",
+                                                  "total": total, "issue_date": date.today().isoformat(),
+                                                  "category_id": category["id"]}, headers=headers).json()
+            api.post(f"/expenses/{expense['id']}/submit", headers=headers)
+        try:
+            login(page, credentials)
+            expect(page.locator(".area-plot svg .ac-line")).to_have_count(1)
+            expect(page.locator(".seg-block").first).to_be_visible()
+            expect(page.locator(".rank-row", has_text=category["name"])).to_be_visible()
+
+            box = page.locator(".area-plot").bounding_box()
+            page.mouse.move(box["x"] + box["width"] - 70, box["y"] + box["height"] / 2)  # el día de hoy
+            expect(page.locator(".chart-tip.is-visible strong")).to_contain_text("$")
+
+            # Cada gráfico tiene su tabla equivalente para lectores de pantalla.
+            assert page.locator(".area-chart table.sr-only tbody tr").count() == 30
+        finally:
+            with engine.begin() as conn:
+                conn.execute(text("DELETE FROM expenses WHERE employee_id = :id"), {"id": employee["id"]})
                 conn.execute(text("DELETE FROM employees WHERE id = :id"), {"id": employee["id"]})

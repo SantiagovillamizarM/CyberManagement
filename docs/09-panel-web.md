@@ -48,6 +48,55 @@ pendientes), el código de registro y la escena de la portada. Todo lo demás qu
   sección.
 - Todos los valores están en `assets/css/tokens.css`.
 
+### Movimiento fluido (120/144 Hz)
+
+- **Solo se animan `transform` y `opacity`**: la GPU los compone sin repintar, así el movimiento va a la
+  frecuencia de la pantalla.
+- **Cambio de página:** View Transitions del navegador (`@view-transition` en `base.css`). La página anterior
+  se queda en pantalla hasta que la nueva está lista, y el menú y la barra superior quedan fijos. En navegadores
+  sin soporte, `motion.js` (`leaveTo`) hace una salida propia.
+- `blocking="render"` en el script de cada página, más el menú dibujado al instante desde `sessionStorage`
+  (solo el nombre y el rol): no hay instante en blanco.
+- Curvas `--ease-out`, `--ease-in-out` y `--ease-spring` en `tokens.css`. Las ventanas y avisos entran y salen
+  animados; mientras se cierran quedan inertes y sueltan sus `id`.
+
+### La portada: carrusel de funciones y fondo vivo
+
+`assets/js/carousel.js` + `assets/css/login.css`. Cuatro escenas en SVG (`scene.js`), 6,5 s cada una:
+
+| Escena | Qué cuenta |
+|---|---|
+| Escanea facturas | El haz recorre la factura y cada dato queda verificado |
+| Guarda cada dato | Los datos viajan a la base de datos ("Guardado con historial") |
+| Viáticos al día | Medidor de lo gastado contra lo entregado |
+| Todo por Telegram | La conversación con el bot, de la foto a "Gasto registrado" |
+
+- El tiempo lo marca la barra del punto activo (animación CSS). Al pasar el mouse se pausa.
+- Con movimiento reducido no avanza solo, y cada escena aparece ya resuelta.
+- Detrás, un fondo discreto: luces que derivan, dos órbitas, un barrido de luz y chispas que suben. Sus
+  posiciones vienen de clases CSS (`.sp1…8`, `.vs-c1…3`), porque **la CSP bloquea `style=""` en línea**.
+- Los textos solo afirman lo que el sistema hace. Por ejemplo, no se dice "cifrado": la BD no está cifrada en reposo.
+
+### Dashboard (`pages/dashboard.js`, `charts.js`, `dashboard.css`)
+
+Gráficos en SVG propio, sin librerías, siguiendo el skill dataviz:
+
+| Bloque | Forma |
+|---|---|
+| Gastado en el mes | Cifra principal que cuenta hasta su valor, con su variación frente al mes anterior |
+| Gasto diario (30 días) | Área de una serie, con cruz de lectura (mouse y flechas del teclado) |
+| Indicadores | Franja; "Gastos por revisar" se enciende solo si hay pendientes |
+| Facturas por estado | Barra segmentada delgada + lista con la cantidad y el monto de cada estado |
+| Gasto por categoría | Barras horizontales ordenadas, de un solo tono, con el valor en la punta |
+| Viáticos abiertos | Medidores: acento → advertencia (≥ 85 %) → peligro (> 100 %), con ícono y texto |
+
+- **Colores de estado validados** con `validate_palette.js` sobre `#0a1122` (todas las comprobaciones pasan):
+  aprobado `#199e70`, enviado `#2f6bff`, pendiente `#c98500`, en revisión `#9085e9`, rechazado `#e66767`.
+  Cada estado tiene el mismo color en los gráficos y en las insignias.
+- Cada gráfico tiene una **tabla equivalente** para lectores de pantalla, y los tooltips usan `textContent`.
+- Hoy se agregan hasta 200 gastos en el navegador. Con más volumen, un endpoint de estadísticas en el backend
+  hará esos cálculos (paso 7.4).
+
 ### El momento de la portada: el escaneo de la factura
 
 `assets/js/scene.js` dibuja una factura con líneas de luz (SVG) y `layout.css` (`.rc-*`) la anima una sola vez:
