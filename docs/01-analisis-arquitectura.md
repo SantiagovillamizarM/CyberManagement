@@ -61,8 +61,9 @@ factura válida.
   - [x] 3.5 Archivos (ver [07-archivos.md](07-archivos.md))
 - [ ] Fase 4 — Telegram
   - [ ] 4.1 Conexión, motor de conversación y vinculación (código listo; falta la prueba con Telegram real)
-  - [ ] 4.2 Registro de gastos conversacional
+  - [ ] 4.2 Registro de gastos conversacional (código y pruebas listos; falta la prueba con Telegram real)
   - [ ] 4.3 Fotos y archivos desde Telegram
+  - [ ] 4.4 Corrección de gastos desde el bot
 - [ ] Fase 5 — Inteligencia artificial
 - [ ] Fase 6 — n8n
 - [ ] Fase 7 — Panel web

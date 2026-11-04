@@ -54,7 +54,89 @@ MENU_EXPENSE = "📸 Registrar gasto"
 MENU_BALANCE = "💰 Mi saldo"
 MENU_EXPENSES = "🧾 Mis gastos"
 MENU_HELP = "❓ Ayuda"
-EXPENSE_COMING_SOON = "🚧 El registro de gastos estará disponible muy pronto."
+
+# --- Registro de gastos (paso 4.2) ---
+
+SKIP = "Omitir ⏭️"
+EXP_WHICH_MONEY = "💰 <b>¿Con qué dinero pagaste este gasto?</b>"
+EXP_VIATICO_OPTION = "💼 {purpose} · disponible {remaining}"
+EXP_NEW_VIATICO_OPTION = "➕ Tenía otro dinero previo"
+EXP_OWN_MONEY_OPTION = "👛 Con mi dinero (reembolsable)"
+EXP_HAD_MONEY = "💰 ¿Contabas con dinero previo para realizar estos gastos (viáticos)?"
+YES, NO = "Sí", "No"
+EXP_ASK_INITIAL = "¿Cuánto dinero tenías disponible inicialmente?\nEjemplo: <code>500.000</code>"
+EXP_ASK_PURPOSE = "¿Para qué es ese dinero? Ejemplo: <i>Viaje a Medellín</i>"
+EXP_ASK_DESCRIPTION = "📝 Describe el gasto.\nEjemplo: <i>Almuerzo con cliente</i>"
+EXP_ASK_TOTAL = "💵 ¿Cuál es el <b>valor total</b> de la factura?\nEjemplo: <code>45.000</code>"
+EXP_ASK_UNIT = (
+    "🔢 ¿Cuál es el <b>valor unitario</b>?\n"
+    "Útil si compraste varias unidades del mismo producto. Si no aplica, omítelo."
+)
+EXP_ASK_DATE = "📅 ¿Qué <b>fecha</b> tiene la factura?\nO escríbela así: <code>03/11/2026</code>"
+TODAY, YESTERDAY = "Hoy", "Ayer"
+EXP_ASK_NIT = (
+    "🏪 ¿Cuál es el <b>NIT</b> del establecimiento?\n"
+    "Ejemplo: <code>900.123.456-8</code>. Si la factura no tiene NIT, omítelo."
+)
+EXP_KNOWN_SUPPLIER = "Establecimiento: <b>{name}</b> ✅"
+EXP_ASK_SUPPLIER_NAME = "¿Cómo se llama el establecimiento?"
+EXP_ASK_INVOICE = "#️⃣ ¿Cuál es el <b>número de la factura</b>? Ejemplo: <code>FE-1234</code>"
+EXP_ASK_CATEGORY = "🏷️ ¿Qué <b>tipo de gasto</b> es?"
+EXP_ASK_LOCATION = (
+    "📍 ¿Estás en el lugar de la compra? Compartir tu ubicación ayuda a verificar el gasto.\n"
+    "<i>Es opcional.</i>"
+)
+EXP_SHARE_LOCATION = "📍 Compartir ubicación"
+EXP_LOCATION_SAVED = "📍 Ubicación registrada."
+EXP_LOCATION_SKIPPED = "Sin ubicación."
+
+EXP_SUMMARY = (
+    "🧾 <b>Resumen del gasto</b>\n\n"
+    "<b>Descripción:</b> {description}\n"
+    "<b>Valor total:</b> {total}\n"
+    "<b>Valor unitario:</b> {unit_price}\n"
+    "<b>Fecha de la factura:</b> {issue_date}\n"
+    "<b>Establecimiento:</b> {supplier}\n"
+    "<b>N.º de factura:</b> {invoice_number}\n"
+    "<b>Tipo de gasto:</b> {category}\n"
+    "<b>Pago:</b> {payment}\n"
+    "<b>Ubicación:</b> {location}\n\n"
+    "¿Los datos son correctos?"
+)
+EXP_PAY_VIATICO = "Viático «{purpose}»"
+EXP_PAY_NEW_VIATICO = "Viático nuevo «{purpose}» ({amount} iniciales)"
+EXP_PAY_OWN = "Dinero propio (reembolsable)"
+NOT_AVAILABLE = "No disponible"
+NO_NIT = "Sin NIT"
+EXP_CONFIRM, EXP_EDIT, EXP_CANCEL = "✅ Confirmar", "✏️ Editar", "❌ Cancelar"
+EXP_WHICH_FIELD = "✏️ ¿Qué dato quieres corregir?"
+EXP_BACK_TO_SUMMARY = "↩️ Volver al resumen"
+EXP_FIELD_LABELS = {
+    "description": "Descripción",
+    "total": "Valor total",
+    "unit_price": "Valor unitario",
+    "issue_date": "Fecha",
+    "nit": "NIT",
+    "invoice_number": "N.º de factura",
+    "category": "Tipo de gasto",
+    "location": "Ubicación",
+}
+
+EXP_SAVED = "✅ <b>Gasto registrado</b> y enviado para revisión."
+EXP_SAVED_BALANCE = "\nDisponible en «{purpose}»: <b>{remaining}</b>"
+EXP_SAVED_REIMBURSABLE = "\nQuedó marcado como <b>reembolsable</b>."
+EXP_DUPLICATE = (
+    "⚠️ Ya existe un gasto registrado con esa factura ({reason}).\n"
+    "Si es otra factura, corrige el dato; si no, cancela el registro."
+)
+EXP_COULD_NOT_SAVE = "⚠️ No pude guardar el gasto: {reason}"
+EXP_CANCELLED = "Registro de gasto cancelado. No se guardó nada."
+EXP_USE_LATEST = "Usa las opciones del último mensaje, por favor 👇"
+EXP_BAD_AMOUNT = (
+    "No entendí el valor. Escríbelo solo con números, por ejemplo <code>45000</code> o <code>45.000</code>."
+)
+EXP_UNIT_GT_TOTAL = "El valor unitario no puede ser mayor que el valor total."
+EXP_BAD_TEXT = "Escribe un texto de entre {min} y {max} caracteres."
 
 NO_OPEN_VIATICOS = "No tienes viáticos abiertos en este momento."
 BALANCE_HEADER = "💰 <b>Tus viáticos abiertos</b>"

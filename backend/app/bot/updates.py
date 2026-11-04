@@ -28,6 +28,8 @@ class Incoming:
     callback_id: str | None = None
     callback_data: str | None = None
     message_id: int | None = None  # mensaje con los botones pulsados
+    latitude: float | None = None
+    longitude: float | None = None
 
 
 def parse_update(raw: dict[str, Any]) -> Incoming | None:
@@ -83,5 +85,11 @@ def parse_update(raw: dict[str, Any]) -> Incoming | None:
     if "document" in message:
         return Incoming(**base, kind=Kind.DOCUMENT)
     if "location" in message:
-        return Incoming(**base, kind=Kind.LOCATION)
+        location = message["location"]
+        return Incoming(
+            **base,
+            kind=Kind.LOCATION,
+            latitude=location.get("latitude"),
+            longitude=location.get("longitude"),
+        )
     return Incoming(**base, kind=Kind.OTHER)

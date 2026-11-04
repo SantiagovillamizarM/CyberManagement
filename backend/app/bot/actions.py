@@ -11,7 +11,21 @@ Action = dict[str, Any]
 Keyboard = list[list[tuple[str, str]]]  # filas de botones (texto, callback_data)
 
 
-def send_message(chat_id: int, text: str, buttons: Keyboard | None = None) -> Action:
+def send_message(
+    chat_id: int,
+    text: str,
+    buttons: Keyboard | None = None,
+    *,
+    reply_keyboard: list[list[dict[str, Any]]] | None = None,
+    remove_keyboard: bool = False,
+) -> Action:
+    """Envía un mensaje.
+
+    - `buttons`: botones dentro del mensaje (inline).
+    - `reply_keyboard`: teclado bajo la caja de texto. Es la única forma de pedir la
+      ubicación (botón con "request_location"); los botones inline no pueden.
+    - `remove_keyboard`: oculta un teclado de respuesta mostrado antes.
+    """
     payload: dict[str, Any] = {
         "chat_id": chat_id,
         "text": text,
@@ -24,6 +38,14 @@ def send_message(chat_id: int, text: str, buttons: Keyboard | None = None) -> Ac
                 [{"text": label, "callback_data": data} for label, data in row] for row in buttons
             ]
         }
+    elif reply_keyboard:
+        payload["reply_markup"] = {
+            "keyboard": reply_keyboard,
+            "resize_keyboard": True,
+            "one_time_keyboard": True,
+        }
+    elif remove_keyboard:
+        payload["reply_markup"] = {"remove_keyboard": True}
     return {"method": "sendMessage", "payload": payload}
 
 

@@ -55,6 +55,36 @@ Cada `method` es un método oficial de la Bot API. Para agregar capacidades nuev
 > Debe enlazar la política oficial de tratamiento de datos, revisada por un abogado. Si el texto cambia,
 > hay que subir `DATA_POLICY_VERSION`.
 
+## Registro de gastos (paso 4.2) — `app/bot/expense_flow.py`
+
+```
+📸 Registrar gasto
+ ├─ con viáticos abiertos:  [💼 viático · disponible $X] … [➕ Tenía otro dinero previo] [👛 Con mi dinero]
+ └─ sin viáticos:           "¿Contabas con dinero previo para realizar estos gastos (viáticos)?" [Sí] [No]
+       Sí → "¿Cuánto dinero tenías disponible inicialmente?" → ¿Para qué es? (opcional)
+ → Descripción → Valor total → Valor unitario (opcional) → Fecha [Hoy] [Ayer] / dd/mm/aaaa
+ → NIT (opcional, con DV) → nombre del establecimiento si es nuevo → N.º de factura (opcional)
+ → Tipo de gasto [botones] → Ubicación (opcional, botón de Telegram)
+ → Resumen [✅ Confirmar] [✏️ Editar] [❌ Cancelar]
+```
+
+| Regla | Detalle |
+|---|---|
+| Nada se guarda antes de confirmar | Las respuestas viven en `bot_sessions.data`; sobreviven a reinicios de la API |
+| Todo o nada | El viático nuevo y el gasto se guardan dentro de un punto de guardado: si el gasto falla (p. ej. duplicado), tampoco queda el viático |
+| Al confirmar | Gasto en estado `submitted`, con historial a nombre del **empleado** |
+| Montos | `45000`, `45.000`, `$45.000`, `1.234.567,50`. Con un solo separador seguido de 3 dígitos, se toma como separador de miles (`utils/money.parse_cop`) |
+| Fechas | Hoy, ayer, `dd/mm/aaaa`, `d-m-aa` o `aaaa-mm-dd`; nunca futuras (`utils/dates.parse_invoice_date`) |
+| Valor unitario | Si se da, se crea una línea con cantidad = total ÷ unitario |
+| Ubicación | Solo si el empleado la comparte → `location_source = telegram`. Si no, "No disponible" |
+| Editar | Cualquier campo; después se vuelve al resumen |
+| `/cancelar`, `/start`, `/menu` | Descartan el borrador |
+| `/saldo`, `/gastos`, `/ayuda` | Responden y repiten la pregunta en curso, sin perder el progreso |
+| Botones viejos | "Usa las opciones del último mensaje" + se repite la pregunta |
+
+Pendiente: fotos y archivos (paso 4.3), corrección de gastos enviados desde el bot (paso 4.4)
+y RUT del proveedor como documento adjunto (4.3).
+
 ## Puesta en marcha en desarrollo
 
 1. Docker encendido y `docker compose up -d`.

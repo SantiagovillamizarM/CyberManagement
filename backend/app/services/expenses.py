@@ -312,7 +312,10 @@ def create_expense(
     supplier_name: str | None = None,
     actor: Actor,
     data_source: DataSource = DataSource.MANUAL,
+    location_source: LocationSource | None = None,
 ) -> Expense:
+    """`location_source`: de dónde vienen las coordenadas (ej. TELEGRAM si el empleado
+    compartió su ubicación). Si se omite y hay coordenadas, se asume MANUAL."""
     if employee.status != EmployeeStatus.ACTIVE or employee.deleted_at is not None:
         raise ExpenseRuleError("El empleado está desactivado")
 
@@ -329,6 +332,8 @@ def create_expense(
     expense.supplier_id = supplier.id if supplier else None
     expense.items = _build_items(items or [])
     expense.location_source = _location_source(expense)
+    if location_source is not None and expense.location_source != LocationSource.NONE:
+        expense.location_source = location_source
 
     _validate(db, expense, viatico_assigned=True)
     _check_duplicates(db, expense)

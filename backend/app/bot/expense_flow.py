@@ -1,0 +1,515 @@
+"""Conversación guiada para registrar un gasto (paso 4.2: registro manual).
+
+Cada paso es un estado "exp:<paso>" en bot_sessions. Lo que el empleado va
+respondiendo se guarda en bot_sessions.data, así que la conversación sobrevive a
+reinicios de la API. NADA se escribe en gastos/viáticos hasta que confirma.
+
+    [viático] ─► descripción ─► total ─► valor unitario ─► fecha ─► NIT ─► (nombre)
+              ─► n.º factura ─► categoría ─► ubicación ─► resumen ─► confirmar / editar
+"""
+
+import html
+import uuid
+from datetime import date
+from decimal import Decimal
+from typing import Any
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.bot import messages as msg
+from app.bot.actions import Action, Keyboard, send_message
+from app.bot.menu import MENU, menu_action
+from app.bot.updates import Incoming, Kind
+from app.models import BotSession, Employee, Supplier, Viatico
+from app.models.enums import LocationSource, MovementSource, PaymentSource, ViaticoStatus
+from app.services import catalog, expenses, viaticos
+from app.services.audit import Actor
+from app.utils.dates import InvalidDateError, local_today, parse_invoice_date
+from app.utils.money import InvalidAmountError, format_cop, parse_cop
+from app.utils.nit import InvalidNitError, parse_nit
+
+# --- Estados ---
+WHICH_MONEY = "exp:which_money"  # tiene viáticos abiertos: elige cuál
+HAD_MONEY = "exp:had_money"  # no tiene: "¿Contabas con dinero previo...?"
+INITIAL_AMOUNT = "exp:initial_amount"
+PURPOSE = "exp:purpose"
+DESCRIPTION = "exp:description"
+TOTAL = "exp:total"
+UNIT_PRICE = "exp:unit_price"
+ISSUE_DATE = "exp:issue_date"
+NIT = "exp:nit"
+SUPPLIER_NAME = "exp:supplier_name"
+INVOICE_NUMBER = "exp:invoice_number"
+CATEGORY = "exp:category"
+LOCATION = "exp:location"
+CONFIRM = "exp:confirm"
+EDIT_CHOICE = "exp:edit_choice"
+
+# Orden de los datos de la factura. Al editar, después de un campo se vuelve al resumen.
+FIELD_ORDER = [DESCRIPTION, TOTAL, UNIT_PRICE, ISSUE_DATE, NIT, INVOICE_NUMBER, CATEGORY, LOCATION]
+EDITABLE = {
+    "description": DESCRIPTION,
+    "total": TOTAL,
+    "unit_price": UNIT_PRICE,
+    "issue_date": ISSUE_DATE,
+    "nit": NIT,
+    "invoice_number": INVOICE_NUMBER,
+    "category": CATEGORY,
+    "location": LOCATION,
+}
+
+# --- Datos de botones (máx. 64 bytes) ---
+CB_SKIP, CB_YES, CB_NO = "exp:skip", "exp:yes", "exp:no"
+CB_VIATICO, CB_NEW_VIATICO, CB_OWN_MONEY = "exp:via:", "exp:via:new", "exp:via:own"
+CB_TODAY, CB_YESTERDAY = "exp:date:today", "exp:date:yesterday"
+CB_CATEGORY = "exp:cat:"
+CB_CONFIRM, CB_EDIT, CB_CANCEL = "exp:ok", "exp:edit", "exp:cancel"
+CB_FIELD, CB_BACK = "exp:field:", "exp:back"
+
+
+class InvalidInput(Exception):
+    """Respuesta inválida para el paso actual. El mensaje se muestra al empleado."""
+
+    def __init__(self, message: str = msg.EXP_USE_LATEST) -> None:
+        super().__init__(message)
+        self.message = message
+
+
+def is_active(session: BotSession) -> bool:
+    return session.state.startswith("exp:")
+
+
+def _data(session: BotSession) -> dict[str, Any]:
+    return dict(session.data or {})
+
+
+def _set(session: BotSession, **values: Any) -> None:
+    # Se reasigna el diccionario completo: SQLAlchemy no detecta cambios internos en JSONB.
+    session.data = {**_data(session), **values}
+
+
+def _open_viaticos(db: Session, employee: Employee) -> list[Viatico]:
+    return viaticos.list_viaticos(db, employee.company_id, employee_id=employee.id, status=ViaticoStatus.OPEN)
+
+
+# --- Inicio ---
+
+
+def start(db: Session, session: BotSession, employee: Employee, chat_id: int) -> list[Action]:
+    session.data = {"flow": "expense"}
+    session.draft_expense_id = None
+    session.state = WHICH_MONEY if _open_viaticos(db, employee) else HAD_MONEY
+    return prompt(db, session, employee, chat_id)
+
+
+# --- Preguntas de cada paso ---
+
+
+def prompt(db: Session, session: BotSession, employee: Employee, chat_id: int) -> list[Action]:
+    state = session.state
+    skip: Keyboard = [[(msg.SKIP, CB_SKIP)]]
+
+    if state == WHICH_MONEY:
+        rows: Keyboard = []
+        for viatico in _open_viaticos(db, employee):
+            remaining = viaticos.compute_balance(db, viatico).remaining
+            label = msg.EXP_VIATICO_OPTION.format(
+                purpose=(viatico.purpose or "Viático")[:30], remaining=format_cop(remaining)
+            )
+            rows.append([(label, f"{CB_VIATICO}{viatico.id}")])
+        rows.append([(msg.EXP_NEW_VIATICO_OPTION, CB_NEW_VIATICO)])
+        rows.append([(msg.EXP_OWN_MONEY_OPTION, CB_OWN_MONEY)])
+        return [send_message(chat_id, msg.EXP_WHICH_MONEY, rows)]
+    if state == HAD_MONEY:
+        return [send_message(chat_id, msg.EXP_HAD_MONEY, [[(msg.YES, CB_YES), (msg.NO, CB_NO)]])]
+    if state == INITIAL_AMOUNT:
+        return [send_message(chat_id, msg.EXP_ASK_INITIAL)]
+    if state == PURPOSE:
+        return [send_message(chat_id, msg.EXP_ASK_PURPOSE, skip)]
+    if state == DESCRIPTION:
+        return [send_message(chat_id, msg.EXP_ASK_DESCRIPTION)]
+    if state == TOTAL:
+        return [send_message(chat_id, msg.EXP_ASK_TOTAL)]
+    if state == UNIT_PRICE:
+        return [send_message(chat_id, msg.EXP_ASK_UNIT, skip)]
+    if state == ISSUE_DATE:
+        return [send_message(chat_id, msg.EXP_ASK_DATE, [[(msg.TODAY, CB_TODAY), (msg.YESTERDAY, CB_YESTERDAY)]])]
+    if state == NIT:
+        return [send_message(chat_id, msg.EXP_ASK_NIT, skip)]
+    if state == SUPPLIER_NAME:
+        return [send_message(chat_id, msg.EXP_ASK_SUPPLIER_NAME)]
+    if state == INVOICE_NUMBER:
+        return [send_message(chat_id, msg.EXP_ASK_INVOICE, skip)]
+    if state == CATEGORY:
+        categories = catalog.list_categories(db, employee.company_id)
+        buttons = [(c.name, f"{CB_CATEGORY}{c.id}") for c in categories]
+        rows = [buttons[i : i + 2] for i in range(0, len(buttons), 2)]
+        return [send_message(chat_id, msg.EXP_ASK_CATEGORY, rows)]
+    if state == LOCATION:
+        keyboard = [[{"text": msg.EXP_SHARE_LOCATION, "request_location": True}], [{"text": msg.SKIP}]]
+        return [send_message(chat_id, msg.EXP_ASK_LOCATION, reply_keyboard=keyboard)]
+    if state == CONFIRM:
+        buttons = [[(msg.EXP_CONFIRM, CB_CONFIRM), (msg.EXP_EDIT, CB_EDIT)], [(msg.EXP_CANCEL, CB_CANCEL)]]
+        return [send_message(chat_id, _summary(db, session), buttons)]
+    if state == EDIT_CHOICE:
+        fields = [(label, f"{CB_FIELD}{key}") for key, label in msg.EXP_FIELD_LABELS.items()]
+        rows = [fields[i : i + 2] for i in range(0, len(fields), 2)]
+        rows.append([(msg.EXP_BACK_TO_SUMMARY, CB_BACK)])
+        return [send_message(chat_id, msg.EXP_WHICH_FIELD, rows)]
+    return []
+
+
+# --- Respuestas ---
+
+
+def handle(db: Session, session: BotSession, employee: Employee, incoming: Incoming) -> list[Action]:
+    """Procesa la respuesta del paso actual.
+
+    Cada manejador devuelve:
+    - una TUPLA: mensajes previos (puede estar vacía); luego se agrega la pregunta del
+      siguiente paso automáticamente;
+    - una LISTA: la respuesta completa (ej. al guardar o cancelar); no se agrega nada.
+    """
+    chat = incoming.chat_id
+    try:
+        result = _HANDLERS[session.state](db, session, employee, incoming)
+    except InvalidInput as error:
+        return [send_message(chat, error.message), *prompt(db, session, employee, chat)]
+    if isinstance(result, list):
+        return result
+    return [*result, *prompt(db, session, employee, chat)]
+
+
+def _text(incoming: Incoming, *, min_len: int, max_len: int) -> str:
+    if incoming.kind != Kind.TEXT or not incoming.text:
+        raise InvalidInput()
+    value = incoming.text.strip()
+    if not min_len <= len(value) <= max_len:
+        raise InvalidInput(msg.EXP_BAD_TEXT.format(min=min_len, max=max_len))
+    return value
+
+
+def _skipped(incoming: Incoming) -> bool:
+    return incoming.callback_data == CB_SKIP or (
+        incoming.kind == Kind.TEXT and (incoming.text or "").strip().lower() in {"omitir", msg.SKIP.lower()}
+    )
+
+
+def _amount(incoming: Incoming) -> Decimal:
+    if incoming.kind != Kind.TEXT:
+        raise InvalidInput()
+    try:
+        return parse_cop(incoming.text or "")
+    except InvalidAmountError:
+        raise InvalidInput(msg.EXP_BAD_AMOUNT)
+
+
+def _advance(session: BotSession, current: str) -> tuple[Any, ...]:
+    """Pasa al siguiente paso. Si se estaba editando un campo, vuelve al resumen."""
+    data = _data(session)
+    if data.get("editing"):
+        session.state = CONFIRM
+        _set(session, editing=False)
+    elif current in FIELD_ORDER and FIELD_ORDER.index(current) + 1 < len(FIELD_ORDER):
+        session.state = FIELD_ORDER[FIELD_ORDER.index(current) + 1]
+    else:
+        session.state = CONFIRM
+    return ()
+
+
+def _on_which_money(db, session, employee, incoming):
+    choice = incoming.callback_data or ""
+    if choice == CB_OWN_MONEY:
+        _set(session, payment_source=PaymentSource.OWN_MONEY.value, viatico_id=None, new_viatico=None)
+    elif choice == CB_NEW_VIATICO:
+        session.state = INITIAL_AMOUNT
+        return ()
+    elif choice.startswith(CB_VIATICO):
+        try:
+            viatico_id = uuid.UUID(choice.removeprefix(CB_VIATICO))
+        except ValueError:
+            raise InvalidInput()
+        if viatico_id not in {v.id for v in _open_viaticos(db, employee)}:
+            raise InvalidInput()  # botón viejo de un viático que ya se cerró
+        _set(session, payment_source=PaymentSource.VIATICO.value, viatico_id=str(viatico_id), new_viatico=None)
+    else:
+        raise InvalidInput()
+    session.state = DESCRIPTION
+    return ()
+
+
+def _on_had_money(db, session, employee, incoming):
+    if incoming.callback_data == CB_YES:
+        session.state = INITIAL_AMOUNT
+    elif incoming.callback_data == CB_NO:
+        _set(session, payment_source=PaymentSource.OWN_MONEY.value, viatico_id=None, new_viatico=None)
+        session.state = DESCRIPTION
+    else:
+        raise InvalidInput()
+    return ()
+
+
+def _on_initial_amount(db, session, employee, incoming):
+    amount = _amount(incoming)
+    _set(session, payment_source=PaymentSource.VIATICO.value, viatico_id=None,
+         new_viatico={"amount": str(amount), "purpose": None})
+    session.state = PURPOSE
+    return ()
+
+
+def _on_purpose(db, session, employee, incoming):
+    purpose = None if _skipped(incoming) else _text(incoming, min_len=3, max_len=200)
+    _set(session, new_viatico={**_data(session)["new_viatico"], "purpose": purpose})
+    session.state = DESCRIPTION
+    return ()
+
+
+def _on_description(db, session, employee, incoming):
+    _set(session, description=_text(incoming, min_len=3, max_len=500))
+    return _advance(session, DESCRIPTION)
+
+
+def _on_total(db, session, employee, incoming):
+    total = _amount(incoming)
+    unit = _data(session).get("unit_price")
+    if unit and Decimal(unit) > total:
+        _set(session, unit_price=None)  # el unitario anterior ya no es coherente
+    _set(session, total=str(total))
+    return _advance(session, TOTAL)
+
+
+def _on_unit_price(db, session, employee, incoming):
+    if _skipped(incoming):
+        _set(session, unit_price=None)
+    else:
+        unit = _amount(incoming)
+        if unit > Decimal(_data(session)["total"]):
+            raise InvalidInput(msg.EXP_UNIT_GT_TOTAL)
+        _set(session, unit_price=str(unit))
+    return _advance(session, UNIT_PRICE)
+
+
+def _on_issue_date(db, session, employee, incoming):
+    if incoming.callback_data == CB_TODAY:
+        value = local_today()
+    elif incoming.callback_data == CB_YESTERDAY:
+        value = parse_invoice_date("ayer")
+    elif incoming.kind == Kind.TEXT:
+        try:
+            value = parse_invoice_date(incoming.text or "")
+        except InvalidDateError as exc:
+            raise InvalidInput(f"{exc}.")
+    else:
+        raise InvalidInput()
+    _set(session, issue_date=value.isoformat())
+    return _advance(session, ISSUE_DATE)
+
+
+def _on_nit(db, session, employee, incoming):
+    if _skipped(incoming):
+        _set(session, supplier_nit=None, supplier_name=None)
+        return _advance(session, NIT)
+    if incoming.kind != Kind.TEXT:
+        raise InvalidInput()
+    try:
+        nit = parse_nit(incoming.text or "")
+    except InvalidNitError as exc:
+        raise InvalidInput(f"❌ {exc}. Revísalo en la factura e inténtalo de nuevo.")
+    known = db.scalar(
+        select(Supplier).where(Supplier.company_id == employee.company_id, Supplier.nit == nit.number)
+    )
+    _set(session, supplier_nit=str(nit))
+    if known is None or known.name.startswith("NIT "):
+        _set(session, supplier_name=None)
+        session.state = SUPPLIER_NAME  # también al editar: hay que saber el nombre
+        return ()
+    _set(session, supplier_name=known.name)
+    _advance(session, NIT)
+    return (send_message(incoming.chat_id, msg.EXP_KNOWN_SUPPLIER.format(name=html.escape(known.name))),)
+
+
+def _on_supplier_name(db, session, employee, incoming):
+    _set(session, supplier_name=_text(incoming, min_len=2, max_len=200))
+    return _advance(session, NIT)
+
+
+def _on_invoice_number(db, session, employee, incoming):
+    value = None if _skipped(incoming) else _text(incoming, min_len=1, max_len=50)
+    _set(session, invoice_number=value)
+    return _advance(session, INVOICE_NUMBER)
+
+
+def _on_category(db, session, employee, incoming):
+    choice = incoming.callback_data or ""
+    if not choice.startswith(CB_CATEGORY):
+        raise InvalidInput()
+    try:
+        category = catalog.get_category(db, employee.company_id, uuid.UUID(choice.removeprefix(CB_CATEGORY)))
+    except (ValueError, catalog.CategoryNotFoundError):
+        raise InvalidInput()
+    _set(session, category_id=str(category.id), category_name=category.name)
+    return _advance(session, CATEGORY)
+
+
+def _on_location(db, session, employee, incoming):
+    chat = incoming.chat_id
+    if incoming.kind == Kind.LOCATION and incoming.latitude is not None and incoming.longitude is not None:
+        _set(session, location={"lat": str(incoming.latitude), "lon": str(incoming.longitude)})
+        note = msg.EXP_LOCATION_SAVED
+    elif _skipped(incoming):
+        _set(session, location=None)
+        note = msg.EXP_LOCATION_SKIPPED
+    else:
+        raise InvalidInput()
+    _advance(session, LOCATION)
+    # El teclado de ubicación se quita con un mensaje propio (un mensaje solo admite un teclado).
+    return (send_message(chat, note, remove_keyboard=True),)
+
+
+def _on_confirm(db, session, employee, incoming):
+    if incoming.callback_data == CB_CONFIRM:
+        return _save(db, session, employee, incoming.chat_id)
+    if incoming.callback_data == CB_EDIT:
+        session.state = EDIT_CHOICE
+        return ()
+    if incoming.callback_data == CB_CANCEL:
+        return cancel(session, employee, incoming.chat_id)
+    raise InvalidInput()
+
+
+def _on_edit_choice(db, session, employee, incoming):
+    choice = incoming.callback_data or ""
+    if choice == CB_BACK:
+        session.state = CONFIRM
+        return ()
+    field = choice.removeprefix(CB_FIELD)
+    if not choice.startswith(CB_FIELD) or field not in EDITABLE:
+        raise InvalidInput()
+    _set(session, editing=True)
+    session.state = EDITABLE[field]
+    return ()
+
+
+_HANDLERS = {
+    WHICH_MONEY: _on_which_money,
+    HAD_MONEY: _on_had_money,
+    INITIAL_AMOUNT: _on_initial_amount,
+    PURPOSE: _on_purpose,
+    DESCRIPTION: _on_description,
+    TOTAL: _on_total,
+    UNIT_PRICE: _on_unit_price,
+    ISSUE_DATE: _on_issue_date,
+    NIT: _on_nit,
+    SUPPLIER_NAME: _on_supplier_name,
+    INVOICE_NUMBER: _on_invoice_number,
+    CATEGORY: _on_category,
+    LOCATION: _on_location,
+    CONFIRM: _on_confirm,
+    EDIT_CHOICE: _on_edit_choice,
+}
+
+
+# --- Resumen, guardado y cancelación ---
+
+
+def _summary(db: Session, session: BotSession) -> str:
+    data = _data(session)
+    if data.get("supplier_nit"):
+        supplier = f"{html.escape(data.get('supplier_name') or '')} (NIT {data['supplier_nit']})"
+    else:
+        supplier = msg.NO_NIT
+    if data.get("new_viatico"):
+        new = data["new_viatico"]
+        payment = msg.EXP_PAY_NEW_VIATICO.format(
+            purpose=html.escape(new.get("purpose") or "Viático"), amount=format_cop(Decimal(new["amount"]))
+        )
+    elif data.get("viatico_id"):
+        viatico = db.get(Viatico, uuid.UUID(data["viatico_id"]))
+        payment = msg.EXP_PAY_VIATICO.format(purpose=html.escape((viatico.purpose if viatico else None) or "Viático"))
+    else:
+        payment = msg.EXP_PAY_OWN
+
+    def money(key: str) -> str:
+        return format_cop(Decimal(data[key])) if data.get(key) else "—"
+
+    return msg.EXP_SUMMARY.format(
+        description=html.escape(data.get("description") or "—"),
+        total=money("total"),
+        unit_price=money("unit_price"),
+        issue_date=date.fromisoformat(data["issue_date"]).strftime("%d/%m/%Y") if data.get("issue_date") else "—",
+        supplier=supplier,
+        invoice_number=html.escape(data.get("invoice_number") or "—"),
+        category=html.escape(data.get("category_name") or "—"),
+        payment=payment,
+        location="Compartida ✅" if data.get("location") else msg.NOT_AVAILABLE,
+    )
+
+
+def _save(db: Session, session: BotSession, employee: Employee, chat_id: int) -> list[Action]:
+    data = _data(session)
+    actor = Actor.from_employee(employee)
+    try:
+        # Punto de guardado: si algo falla, no queda ni el viático nuevo ni el gasto.
+        with db.begin_nested():
+            viatico_id = uuid.UUID(data["viatico_id"]) if data.get("viatico_id") else None
+            if data.get("new_viatico"):
+                new = data["new_viatico"]
+                viatico_id = viaticos.open_viatico(
+                    db, employee, initial_amount=Decimal(new["amount"]), purpose=new.get("purpose"),
+                    source=MovementSource.EMPLOYEE, actor=actor,
+                ).id
+            fields: dict[str, Any] = {
+                "description": data["description"],
+                "total": Decimal(data["total"]),
+                "issue_date": date.fromisoformat(data["issue_date"]),
+                "invoice_number": data.get("invoice_number"),
+                "category_id": uuid.UUID(data["category_id"]) if data.get("category_id") else None,
+                "viatico_id": viatico_id,
+                "payment_source": PaymentSource(data["payment_source"]),
+            }
+            if data.get("location"):
+                fields["location_lat"] = Decimal(data["location"]["lat"])
+                fields["location_lon"] = Decimal(data["location"]["lon"])
+                fields["location_text"] = "Compartida por el empleado en Telegram al registrar el gasto"
+            items = []
+            if data.get("unit_price"):
+                unit = Decimal(data["unit_price"])
+                quantity = (fields["total"] / unit).quantize(Decimal("0.001"))
+                items = [{"description": data["description"][:255], "quantity": quantity,
+                          "unit_price": unit, "line_total": fields["total"]}]
+            expense = expenses.create_expense(
+                db, employee, fields, items=items,
+                supplier_nit=data.get("supplier_nit"), supplier_name=data.get("supplier_name"),
+                actor=actor, location_source=LocationSource.TELEGRAM if data.get("location") else None,
+            )
+            expenses.submit(db, expense, actor)
+    except expenses.DuplicateInvoiceError as exc:
+        session.state = CONFIRM
+        return [send_message(chat_id, msg.EXP_DUPLICATE.format(reason=exc.reason.lower())),
+                *prompt(db, session, employee, chat_id)]
+    except (expenses.ExpenseRuleError, viaticos.ViaticoRuleError) as exc:
+        session.state = CONFIRM
+        return [send_message(chat_id, msg.EXP_COULD_NOT_SAVE.format(reason=html.escape(str(exc)))),
+                *prompt(db, session, employee, chat_id)]
+
+    text = msg.EXP_SAVED
+    if expense.viatico_id:
+        viatico = db.get(Viatico, expense.viatico_id)
+        text += msg.EXP_SAVED_BALANCE.format(
+            purpose=html.escape(viatico.purpose or "Viático"),
+            remaining=format_cop(viaticos.compute_balance(db, viatico).remaining),
+        )
+    elif expense.is_reimbursable:
+        text += msg.EXP_SAVED_REIMBURSABLE
+    session.state = MENU
+    session.data = {}
+    return [send_message(chat_id, text), menu_action(chat_id, employee)]
+
+
+def cancel(session: BotSession, employee: Employee, chat_id: int) -> list[Action]:
+    """Descarta el borrador: como nada se guardó aún, no queda ningún registro a medias."""
+    session.state = MENU
+    session.data = {}
+    session.draft_expense_id = None
+    return [send_message(chat_id, msg.EXP_CANCELLED, remove_keyboard=True), menu_action(chat_id, employee)]

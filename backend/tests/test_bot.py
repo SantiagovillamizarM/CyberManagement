@@ -242,7 +242,11 @@ def test_ca8_cancel_at_any_step(db: Session) -> None:
 def test_ca8_help(db: Session, code: str) -> None:
     assert texts(send(db, text_update("/ayuda"))) == [msg.HELP_UNLINKED]
     link(db, code)
-    assert texts(send(db, text_update("/ayuda@CO_CyberManagement_bot"))) == [msg.HELP_LINKED]
+    # La ayuda va seguida del menú, para que el empleado no quede sin opciones.
+    assert texts(send(db, text_update("/ayuda@CO_CyberManagement_bot"))) == [
+        msg.HELP_LINKED,
+        msg.MENU.format(first_name="Jhon"),
+    ]
 
 
 # --- CA-3: idempotencia ---

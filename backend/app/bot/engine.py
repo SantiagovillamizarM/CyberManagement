@@ -8,7 +8,7 @@ Máquina de estados (bot_sessions.state):
         awaiting_code ──(código válido)──► menu   [se vincula y se guarda la autorización]
 
     Empleado vinculado:
-        menu  (en el paso 4.2 se agregan los estados del registro de gastos)
+        menu ──(📸 Registrar gasto)──► exp:*  (ver expense_flow.py) ──► menu
 """
 
 import html
@@ -20,7 +20,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.bot import messages as msg
+from app.bot import expense_flow
 from app.bot.actions import Action, Keyboard, answer_callback, remove_buttons, send_message
+from app.bot.menu import CB_BALANCE, CB_EXPENSE, CB_EXPENSES, CB_HELP, MENU, menu_action
 from app.bot.updates import Incoming, Kind, parse_update
 from app.core.config import get_settings
 from app.models import BotSession, DataConsent, Employee, Expense, TelegramEvent
@@ -35,17 +37,9 @@ logger = logging.getLogger(__name__)
 IDLE = "idle"
 AWAITING_CONSENT = "awaiting_consent"
 AWAITING_CODE = "awaiting_code"
-MENU = "menu"
 
 # Datos de los botones (máximo 64 bytes cada uno, lo exige Telegram)
 CONSENT_YES, CONSENT_NO = "consent:yes", "consent:no"
-CB_EXPENSE, CB_BALANCE, CB_EXPENSES, CB_HELP = "menu:expense", "menu:balance", "menu:expenses", "menu:help"
-
-MENU_BUTTONS: Keyboard = [
-    [(msg.MENU_EXPENSE, CB_EXPENSE)],
-    [(msg.MENU_BALANCE, CB_BALANCE), (msg.MENU_EXPENSES, CB_EXPENSES)],
-    [(msg.MENU_HELP, CB_HELP)],
-]
 
 
 def handle_update(db: Session, raw: dict) -> list[Action]:
@@ -183,10 +177,7 @@ def _redeem(db: Session, session: BotSession, incoming: Incoming) -> list[Action
         session.employee_id = employee.id
         _reset(session, MENU)
         name = _first_name(employee.first_name)
-        return [
-            send_message(chat, msg.REGISTER_SUCCESS.format(first_name=name)),
-            send_message(chat, msg.MENU.format(first_name=name), MENU_BUTTONS),
-        ]
+        return [send_message(chat, msg.REGISTER_SUCCESS.format(first_name=name)), menu_action(chat, employee)]
     replies = {
         RedeemStatus.INVALID_CODE: msg.CODE_INVALID,
         RedeemStatus.TOO_MANY_ATTEMPTS: msg.CODE_TOO_MANY,
@@ -200,29 +191,41 @@ def _redeem(db: Session, session: BotSession, incoming: Incoming) -> list[Action
 
 def _linked(db: Session, session: BotSession, employee: Employee, incoming: Incoming) -> list[Action]:
     chat = incoming.chat_id
-    name = _first_name(employee.first_name)
     command = incoming.command if incoming.kind == Kind.COMMAND else None
     choice = incoming.callback_data
+    in_expense = expense_flow.is_active(session)
 
     if command == "cancelar":
+        if in_expense:
+            return expense_flow.cancel(session, employee, chat)
         _reset(session, MENU)
-        return [send_message(chat, msg.CANCELLED), _menu(chat, name)]
-    if command == "ayuda" or choice == CB_HELP:
-        return [send_message(chat, msg.HELP_LINKED)]
-    if command == "saldo" or choice == CB_BALANCE:
-        return [send_message(chat, _balance_text(db, employee)), _menu(chat, name)]
-    if command == "gastos" or choice == CB_EXPENSES:
-        return [send_message(chat, _expenses_text(db, employee)), _menu(chat, name)]
-    if choice == CB_EXPENSE:
-        return [send_message(chat, msg.EXPENSE_COMING_SOON), _menu(chat, name)]
+        return [send_message(chat, msg.CANCELLED), menu_action(chat, employee)]
+    if command in {"start", "menu"}:
+        if in_expense:
+            return expense_flow.cancel(session, employee, chat)
+        _reset(session, MENU)
+        return [menu_action(chat, employee)]
 
-    # /start, /menu, texto libre o estado desconocido: menú principal
+    # Consultas que no interrumpen un registro en curso: se responde y se repite la pregunta.
+    info = None
+    if command == "ayuda" or (choice == CB_HELP and not in_expense):
+        info = msg.HELP_LINKED
+    elif command == "saldo" or (choice == CB_BALANCE and not in_expense):
+        info = _balance_text(db, employee)
+    elif command == "gastos" or (choice == CB_EXPENSES and not in_expense):
+        info = _expenses_text(db, employee)
+    if info is not None:
+        follow = expense_flow.prompt(db, session, employee, chat) if in_expense else [menu_action(chat, employee)]
+        return [send_message(chat, info), *follow]
+
+    if choice == CB_EXPENSE and not in_expense:
+        return expense_flow.start(db, session, employee, chat)
+    if in_expense:
+        return expense_flow.handle(db, session, employee, incoming)
+
+    # Texto libre, botón viejo o estado desconocido: menú principal
     _reset(session, MENU)
-    return [_menu(chat, name)]
-
-
-def _menu(chat_id: int, name: str) -> Action:
-    return send_message(chat_id, msg.MENU.format(first_name=name), MENU_BUTTONS)
+    return [menu_action(chat, employee)]
 
 
 def _balance_text(db: Session, employee: Employee) -> str:
