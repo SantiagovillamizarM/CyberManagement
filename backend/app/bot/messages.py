@@ -26,10 +26,11 @@ CONSENT_REQUEST = (
 CONSENT_ACCEPT = "✅ Acepto"
 CONSENT_DECLINE = "❌ No acepto"
 CONSENT_DECLINED = (
-    "Entendido. Sin tu autorización no podemos registrarte.\n"
-    "Si cambias de opinión, escribe /start."
+    "Entendido. Sin tu autorización no puedo registrarte, así que aquí terminamos por ahora.\n"
+    "Si cambias de opinión, escríbeme cualquier mensaje y te la vuelvo a mostrar."
 )
-CONSENT_USE_BUTTONS = "Por favor responde usando los botones de arriba 👆"
+# Antecede a la autorización cuando se repite porque la persona respondió otra cosa.
+CONSENT_PENDING = "Para continuar necesito tu respuesta a esta autorización 👇"
 
 ASK_CODE = (
     "Por favor, introduce el <b>código de registro</b> que te proporcionó el administrador.\n"
@@ -235,4 +236,4 @@ HELP_LINKED = (
     "Si tienes problemas con tu cuenta, contacta al administrador."
 )
 CANCELLED = "Operación cancelada."
-CANCELLED_UNLINKED = "Operación cancelada. Escribe /start cuando quieras comenzar."
+CANCELLED_UNLINKED = "Operación cancelada. Escríbeme cualquier mensaje cuando quieras comenzar."

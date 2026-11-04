@@ -106,8 +106,23 @@ def test_ca4_code_is_not_accepted_before_consent(db: Session, code: str, employe
 
     actions = send(db, text_update(code))  # intenta saltarse la autorización
 
-    assert texts(actions) == [msg.CONSENT_USE_BUTTONS]
+    assert texts(actions) == [msg.CONSENT_PENDING, msg.CONSENT_REQUEST]
+    assert buttons(actions) == [engine.CONSENT_YES, engine.CONSENT_NO]
     assert employee.telegram_user_id is None
+
+
+@pytest.mark.parametrize("update", [
+    lambda: text_update("hola"), lambda: text_update("/start"), lambda: text_update("/menu"), photo_update,
+])
+def test_consent_flow_stops_until_answered(db: Session, update) -> None:
+    """Mientras espera la autorización, cualquier cosa la vuelve a mostrar completa."""
+    send(db, text_update("/start"))
+
+    actions = send(db, update())
+
+    assert texts(actions) == [msg.CONSENT_PENDING, msg.CONSENT_REQUEST]
+    assert buttons(actions) == [engine.CONSENT_YES, engine.CONSENT_NO]
+    assert db.get(BotSession, USER).state == engine.AWAITING_CONSENT
 
 
 def test_ca4_declining_registers_nothing(db: Session, code: str, employee: Employee) -> None:
@@ -115,10 +130,48 @@ def test_ca4_declining_registers_nothing(db: Session, code: str, employee: Emplo
 
     actions = send(db, button_update(engine.CONSENT_NO))
 
-    assert msg.CONSENT_DECLINED in texts(actions)
-    assert db.get(BotSession, USER).state == engine.IDLE
+    assert texts(actions) == [msg.CONSENT_DECLINED]
+    assert buttons(actions) == []  # termina: sin botones
+    assert "/start" not in msg.CONSENT_DECLINED
+    assert db.get(BotSession, USER).state == engine.CONSENT_DECLINED
     assert employee.telegram_user_id is None
     assert db.scalars(select(DataConsent)).all() == []
+
+
+def test_after_declining_any_message_returns_to_consent_without_welcome(db: Session, code: str) -> None:
+    send(db, text_update("/start"))
+    send(db, button_update(engine.CONSENT_NO))
+
+    actions = send(db, text_update(code))  # ni siquiera un código válido la salta
+
+    assert texts(actions) == [msg.CONSENT_REQUEST]
+    assert buttons(actions) == [engine.CONSENT_YES, engine.CONSENT_NO]
+    # Y si ahora acepta, sigue el flujo normal hasta vincularse.
+    assert texts(send(db, button_update(engine.CONSENT_YES))) == [msg.ASK_CODE]
+    assert "¡Registro exitoso!" in texts(send(db, text_update(code)))[0]
+
+
+def test_old_accept_button_still_counts_after_declining(db: Session) -> None:
+    send(db, text_update("/start"))
+    send(db, button_update(engine.CONSENT_NO))
+
+    assert texts(send(db, button_update(engine.CONSENT_YES))) == [msg.ASK_CODE]
+
+
+def test_help_during_consent_shows_consent_again(db: Session) -> None:
+    send(db, text_update("/start"))
+
+    actions = send(db, text_update("/ayuda"))
+
+    assert texts(actions) == [msg.HELP_UNLINKED, msg.CONSENT_REQUEST]
+    assert db.get(BotSession, USER).state == engine.AWAITING_CONSENT
+
+
+def test_cancel_during_consent_is_like_declining(db: Session) -> None:
+    send(db, text_update("/start"))
+
+    assert texts(send(db, text_update("/cancelar"))) == [msg.CONSENT_DECLINED]
+    assert texts(send(db, text_update("hola"))) == [msg.CONSENT_REQUEST]
 
 
 def test_pressed_buttons_are_answered_and_removed(db: Session) -> None:
@@ -236,7 +289,8 @@ def test_ca8_cancel_at_any_step(db: Session) -> None:
     send(db, button_update(engine.CONSENT_YES))
 
     assert texts(send(db, text_update("/cancelar"))) == [msg.CANCELLED_UNLINKED]
-    assert db.get(BotSession, USER).state == engine.IDLE
+    assert db.get(BotSession, USER).state == engine.CONSENT_DECLINED
+    assert texts(send(db, text_update("hola"))) == [msg.CONSENT_REQUEST]  # vuelve a pedirla
 
 
 def test_ca8_help(db: Session, code: str) -> None:

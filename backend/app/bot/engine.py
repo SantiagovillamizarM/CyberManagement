@@ -4,7 +4,9 @@ Máquina de estados (bot_sessions.state):
 
     Usuario NO vinculado:
         idle ──(cualquier mensaje)──► awaiting_consent ──(Acepto)──► awaiting_code
-                                           └──(No acepto)──► idle
+                                           │  └──(otra cosa)──► repite la autorización
+                                           └──(No acepto / /cancelar)──► consent_declined
+        consent_declined ──(cualquier mensaje)──► awaiting_consent  [sin repetir la bienvenida]
         awaiting_code ──(código válido)──► menu   [se vincula y se guarda la autorización]
 
     Empleado vinculado:
@@ -41,6 +43,7 @@ logger = logging.getLogger(__name__)
 IDLE = "idle"
 AWAITING_CONSENT = "awaiting_consent"
 AWAITING_CODE = "awaiting_code"
+CONSENT_DECLINED = "consent_declined"  # no aceptó (o canceló): conversación detenida
 
 # Datos de los botones (máximo 64 bytes cada uno, lo exige Telegram)
 CONSENT_YES, CONSENT_NO = "consent:yes", "consent:no"
@@ -115,17 +118,13 @@ def _first_name(name: str | None) -> str:
 
 
 def _unlinked(db: Session, session: BotSession, incoming: Incoming) -> list[Action]:
+    """La autorización de datos es un punto de parada: sin un "Acepto" explícito no se avanza."""
     chat = incoming.chat_id
-    if incoming.kind == Kind.COMMAND:
-        if incoming.command == "ayuda":
-            return [send_message(chat, msg.HELP_UNLINKED)]
-        if incoming.command == "cancelar":
-            _reset(session, IDLE)
-            return [send_message(chat, msg.CANCELLED_UNLINKED)]
-        if incoming.command == "start" and session.state == AWAITING_CODE:
-            return [send_message(chat, msg.ASK_CODE)]
+    state = session.state
 
-    if session.state == AWAITING_CONSENT:
+    # 1. Respuesta a la autorización. Vale también el botón de un mensaje anterior
+    #    (CA-6): es una respuesta explícita a la misma política.
+    if state in (AWAITING_CONSENT, CONSENT_DECLINED):
         if incoming.callback_data == CONSENT_YES:
             session.state = AWAITING_CODE
             session.data = {
@@ -133,27 +132,45 @@ def _unlinked(db: Session, session: BotSession, incoming: Incoming) -> list[Acti
                 "consent_at": datetime.now(UTC).isoformat(),
             }
             return [send_message(chat, msg.ASK_CODE)]
-        if incoming.callback_data == CONSENT_NO:
-            _reset(session, IDLE)
-            return [send_message(chat, msg.CONSENT_DECLINED)]
-        return [send_message(chat, msg.CONSENT_USE_BUTTONS, _consent_buttons())]
+        if incoming.callback_data == CONSENT_NO or (state == AWAITING_CONSENT and incoming.command == "cancelar"):
+            return _stop(session, chat, msg.CONSENT_DECLINED)
 
-    if session.state == AWAITING_CODE:
+    # 2. Comandos generales
+    if incoming.command == "ayuda":
+        actions = [send_message(chat, msg.HELP_UNLINKED)]
+        if state == AWAITING_CONSENT:  # la ayuda no la saca de la autorización
+            actions.append(_consent_request(chat))
+        return actions
+    if incoming.command == "cancelar":
+        return _stop(session, chat, msg.CANCELLED_UNLINKED)
+
+    # 3. Esperando el código (ya aceptó)
+    if state == AWAITING_CODE:
+        if incoming.command == "start":
+            return [send_message(chat, msg.ASK_CODE)]
         if incoming.kind != Kind.TEXT:
             return [send_message(chat, msg.CODE_NEEDS_TEXT)]
         return _redeem(db, session, incoming)
 
-    # idle (o cualquier estado desconocido): empieza el registro
+    # 4. Cualquier otra cosa: (volver a) mostrar la autorización y esperar.
     session.state = AWAITING_CONSENT
     session.data = {}
-    return [
-        send_message(chat, msg.WELCOME),
-        send_message(chat, msg.CONSENT_REQUEST, _consent_buttons()),
-    ]
+    if state == AWAITING_CONSENT:  # respondió otra cosa
+        return [send_message(chat, msg.CONSENT_PENDING), _consent_request(chat)]
+    if state == CONSENT_DECLINED:  # ya conoce la bienvenida
+        return [_consent_request(chat)]
+    return [send_message(chat, msg.WELCOME), _consent_request(chat)]
 
 
-def _consent_buttons() -> Keyboard:
-    return [[(msg.CONSENT_ACCEPT, CONSENT_YES), (msg.CONSENT_DECLINE, CONSENT_NO)]]
+def _stop(session: BotSession, chat: int, text: str) -> list[Action]:
+    """Termina la conversación. El siguiente mensaje vuelve a la autorización."""
+    _reset(session, CONSENT_DECLINED)
+    return [send_message(chat, text)]
+
+
+def _consent_request(chat: int) -> Action:
+    buttons: Keyboard = [[(msg.CONSENT_ACCEPT, CONSENT_YES), (msg.CONSENT_DECLINE, CONSENT_NO)]]
+    return send_message(chat, msg.CONSENT_REQUEST, buttons)
 
 
 def _redeem(db: Session, session: BotSession, incoming: Incoming) -> list[Action]:
