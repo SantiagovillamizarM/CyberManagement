@@ -1,0 +1,66 @@
+/* Identidad visual de CyberManagement — "La luz es el dato verificado".
+   Base casi negra con un toque azul; el azul eléctrico se enciende SOLO donde hay
+   información confirmada o una acción importante. Todo sale de este archivo. */
+
+@font-face {
+  font-family: "Archivo";
+  src: url("../fonts/archivo-variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-stretch: 62% 125%; /* eje de ancho: títulos expandidos, texto normal */
+  font-display: swap;
+}
+
+:root {
+  color-scheme: dark;
+
+  /* Oscuridad (del fondo a lo más elevado) */
+  --abyss: #05070d;
+  --night: #0a1122;
+  --navy: #16233f;
+  --surface: #0a1122;
+  --surface-2: #0e1730;
+  --surface-3: #142040;
+  --field: #070c18;
+  --line: #19264a;
+  --line-strong: #26375e;
+  --highlight: rgba(169, 196, 255, 0.06); /* borde superior iluminado de las superficies */
+
+  /* Luz */
+  --electric: #2f6bff;
+  --electric-glow: #4d8dff;
+  --electric-soft: rgba(47, 107, 255, 0.16);
+  --electric-faint: rgba(47, 107, 255, 0.07);
+  --ice: #a9c4ff;
+
+  /* Texto */
+  --text: #f4f7ff;
+  --text-muted: #8794b2;
+  --text-faint: #5d6a8a;
+
+  /* Estados (afinados para convivir con el azul) */
+  --success: #2bd9a0;
+  --success-soft: rgba(43, 217, 160, 0.12);
+  --warning: #ffc25c;
+  --warning-soft: rgba(255, 194, 92, 0.12);
+  --danger: #ff6b81;
+  --danger-soft: rgba(255, 107, 129, 0.12);
+  --cyan: #5ce1ff;
+  --cyan-soft: rgba(92, 225, 255, 0.12);
+
+  /* Forma: la jerarquía también se nota en las esquinas */
+  --radius-control: 8px;
+  --radius-panel: 14px;
+  --radius-dialog: 18px;
+  --glow: 0 0 0 1px rgba(77, 141, 255, 0.45), 0 10px 34px -10px rgba(47, 107, 255, 0.85);
+  --shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.8);
+
+  /* Tipografía */
+  --font: "Archivo", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Cascadia Code", Consolas, "SF Mono", Menlo, monospace;
+  --display-stretch: 125%;
+
+  /* Medidas */
+  --sidebar-width: 248px;
+  --topbar-height: 64px;
+  --speed: 160ms;
+}

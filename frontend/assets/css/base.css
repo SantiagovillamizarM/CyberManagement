@@ -1,0 +1,90 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  /* Luz que sale de la oscuridad: un único resplandor arriba, sin manchas decorativas. */
+  background:
+    radial-gradient(1100px 520px at 18% -18%, rgba(47, 107, 255, 0.13), transparent 62%),
+    var(--abyss);
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.55;
+  font-feature-settings: "tnum" 0;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3 {
+  margin: 0;
+  line-height: 1.1;
+  font-stretch: var(--display-stretch);
+}
+
+h1 { font-size: clamp(1.75rem, 1.2rem + 1.6vw, 2.4rem); font-weight: 760; letter-spacing: -0.025em; }
+h2 { font-size: 1.12rem; font-weight: 680; letter-spacing: -0.01em; }
+h3 { font-size: 1rem; font-weight: 640; }
+
+p { margin: 0; text-wrap: pretty; } /* evita palabras sueltas en la última línea */
+h1, h2 { text-wrap: balance; }
+
+a { color: var(--ice); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+code,
+.mono { font-family: var(--font-mono); }
+
+/* Cifras de dinero y conteos: dígitos del mismo ancho para que las columnas cuadren. */
+.num { font-variant-numeric: tabular-nums; }
+
+:focus-visible {
+  outline: 2px solid var(--electric-glow);
+  outline-offset: 2px;
+}
+
+::selection { background: rgba(47, 107, 255, 0.4); }
+
+.mt { margin-top: 18px; }
+.muted { color: var(--text-muted); }
+.faint { color: var(--text-faint); }
+.hidden { display: none !important; }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Movimiento solo en respuesta a lo que hace la persona (abrir, confirmar). */
+@keyframes pop {
+  from { opacity: 0; transform: scale(0.98) translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 1ms !important;
+  }
+}

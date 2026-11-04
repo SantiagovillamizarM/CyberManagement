@@ -1,3 +1,5 @@
 # Dependencias solo para desarrollo y pruebas.
 -r requirements.txt
 pytest==9.2.0
+# Pruebas del panel en un navegador real (usa el Edge instalado: channel="msedge").
+playwright==1.64.1

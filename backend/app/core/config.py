@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     # Versión de la política de tratamiento de datos que acepta el empleado (Ley 1581).
     data_policy_version: str = "2026-11-v1"
 
+    # --- Panel web (HTML/CSS/JS). En desarrollo lo sirve la propia API. ---
+    frontend_dir: Path = PROJECT_ROOT / "frontend"
+
     # --- Almacenamiento de archivos ---
     storage_dir: Path = PROJECT_ROOT / "storage"
     max_upload_mb: int = 10

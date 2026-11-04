@@ -34,6 +34,7 @@ Arquitectura y decisiones: [docs/01-analisis-arquitectura.md](docs/01-analisis-a
 
    | Servicio | URL |
    |---|---|
+   | **Panel web** | http://127.0.0.1:8000 |
    | API (salud) | http://127.0.0.1:8000/api/health |
    | API (documentación) | http://127.0.0.1:8000/api/docs |
    | n8n | http://127.0.0.1:5678 |
@@ -68,6 +69,12 @@ Arquitectura y decisiones: [docs/01-analisis-arquitectura.md](docs/01-analisis-a
 
    ```powershell
    .venv\Scripts\python.exe -m pytest -v
+   ```
+
+8. Pruebas del panel en un navegador real (Edge; requieren la API corriendo):
+
+   ```powershell
+   .venv\Scripts\python.exe -m pytest tests_e2e -v
    ```
 
 ## Comandos útiles

@@ -28,6 +28,11 @@ def _superadmin_only(admin: AdminUser = Depends(require_roles(AdminRole.SUPERADM
     return {"ok": True}
 
 
+# El panel está montado en "/" y atrapa toda ruta registrada DESPUÉS de él; por eso
+# esta ruta de prueba se mueve al principio de la lista.
+app.router.routes.insert(0, app.router.routes.pop())
+
+
 def login(client: TestClient, email: str = "admin@cybermanagement.com", password: str = ADMIN_PASSWORD):
     return client.post(LOGIN, json={"email": email, "password": password})
 
