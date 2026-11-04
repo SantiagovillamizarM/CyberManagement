@@ -153,6 +153,20 @@ def test_ca12_duplicate_cufe(client, csrf, employee) -> None:
     assert response.status_code == 409
 
 
+def test_ca12_editing_into_a_duplicate_is_409_not_500(client, csrf, employee) -> None:
+    """Regresión (paso 4.4): al EDITAR, el autoflush enviaba el cambio a la BD antes de
+    validarlo y la restricción única respondía con un error 500."""
+    first = create(client, csrf, employee)
+    second = create(client, csrf, employee, invoice_number="FE-2")
+
+    response = client.patch(f"{BASE}/{second['id']}", headers=csrf,
+                            json={"version": second["version"], "invoice_number": first["invoice_number"]})
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["existing_expense_id"] == first["id"]
+    assert client.get(f"{BASE}/{second['id']}").json()["invoice_number"] == "FE-2"
+
+
 def test_same_invoice_number_from_other_supplier_is_fine(client, csrf, employee) -> None:
     create(client, csrf, employee)
 

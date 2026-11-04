@@ -21,16 +21,17 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.bot import messages as msg
-from app.bot.actions import Action, Keyboard, send_message, store_file
+from app.bot import inputs
+from app.bot.actions import Action, Keyboard, send_message
+from app.bot.inputs import ALLOWED_MIME, INVOICE, RUT_FILE, InvalidInput  # noqa: F401 (reexportados)
 from app.bot.menu import MENU, menu_action
 from app.bot.updates import Incoming, Kind
-from app.core.config import get_settings
 from app.models import BotSession, Document, Employee, Supplier, Viatico
 from app.models.enums import LocationSource, MovementSource, PaymentSource, ViaticoStatus
 from app.services import audit, catalog, documents, expenses, viaticos
 from app.services.audit import Actor
 from app.utils.dates import InvalidDateError, local_today, parse_invoice_date
-from app.utils.money import InvalidAmountError, format_cop, parse_cop
+from app.utils.money import format_cop
 from app.utils.nit import InvalidNitError, parse_nit
 
 # --- Estados ---
@@ -67,25 +68,13 @@ EDITABLE = {
 }
 
 # --- Datos de botones (máx. 64 bytes) ---
-CB_SKIP, CB_YES, CB_NO = "exp:skip", "exp:yes", "exp:no"
+CB_SKIP, CB_YES, CB_NO = inputs.CB_SKIP, "exp:yes", "exp:no"
 CB_VIATICO, CB_NEW_VIATICO, CB_OWN_MONEY = "exp:via:", "exp:via:new", "exp:via:own"
 CB_TODAY, CB_YESTERDAY = "exp:date:today", "exp:date:yesterday"
 CB_CATEGORY = "exp:cat:"
 CB_CONFIRM, CB_EDIT, CB_CANCEL = "exp:ok", "exp:edit", "exp:cancel"
 CB_FIELD, CB_BACK = "exp:field:", "exp:back"
 CB_NO_PHOTO = "exp:nophoto"
-
-# Tipos de archivo aceptados (la validación definitiva se hace sobre el contenido descargado).
-ALLOWED_MIME = {"image/jpeg", "image/png", "image/webp", "application/pdf"}
-INVOICE, RUT_FILE = "invoice", "rut"  # propósito del archivo
-
-
-class InvalidInput(Exception):
-    """Respuesta inválida para el paso actual. El mensaje se muestra al empleado."""
-
-    def __init__(self, message: str = msg.EXP_USE_LATEST) -> None:
-        super().__init__(message)
-        self.message = message
 
 
 def is_active(session: BotSession) -> bool:
@@ -204,28 +193,7 @@ def handle(db: Session, session: BotSession, employee: Employee, incoming: Incom
     return [*result, *prompt(db, session, employee, chat)]
 
 
-def _text(incoming: Incoming, *, min_len: int, max_len: int) -> str:
-    if incoming.kind != Kind.TEXT or not incoming.text:
-        raise InvalidInput()
-    value = incoming.text.strip()
-    if not min_len <= len(value) <= max_len:
-        raise InvalidInput(msg.EXP_BAD_TEXT.format(min=min_len, max=max_len))
-    return value
 
-
-def _skipped(incoming: Incoming) -> bool:
-    return incoming.callback_data == CB_SKIP or (
-        incoming.kind == Kind.TEXT and (incoming.text or "").strip().lower() in {"omitir", msg.SKIP.lower()}
-    )
-
-
-def _amount(incoming: Incoming) -> Decimal:
-    if incoming.kind != Kind.TEXT:
-        raise InvalidInput()
-    try:
-        return parse_cop(incoming.text or "")
-    except InvalidAmountError:
-        raise InvalidInput(msg.EXP_BAD_AMOUNT)
 
 
 def _advance(session: BotSession, current: str) -> tuple[Any, ...]:
@@ -274,7 +242,7 @@ def _on_had_money(db, session, employee, incoming):
 
 
 def _on_initial_amount(db, session, employee, incoming):
-    amount = _amount(incoming)
+    amount = inputs.amount(incoming)
     _set(session, payment_source=PaymentSource.VIATICO.value, viatico_id=None,
          new_viatico={"amount": str(amount), "purpose": None})
     session.state = PURPOSE
@@ -282,19 +250,19 @@ def _on_initial_amount(db, session, employee, incoming):
 
 
 def _on_purpose(db, session, employee, incoming):
-    purpose = None if _skipped(incoming) else _text(incoming, min_len=3, max_len=200)
+    purpose = None if inputs.skipped(incoming) else inputs.text(incoming, min_len=3, max_len=200)
     _set(session, new_viatico={**_data(session)["new_viatico"], "purpose": purpose})
     session.state = _after_money(session)
     return ()
 
 
 def _on_description(db, session, employee, incoming):
-    _set(session, description=_text(incoming, min_len=3, max_len=500))
+    _set(session, description=inputs.text(incoming, min_len=3, max_len=500))
     return _advance(session, DESCRIPTION)
 
 
 def _on_total(db, session, employee, incoming):
-    total = _amount(incoming)
+    total = inputs.amount(incoming)
     unit = _data(session).get("unit_price")
     if unit and Decimal(unit) > total:
         _set(session, unit_price=None)  # el unitario anterior ya no es coherente
@@ -303,10 +271,10 @@ def _on_total(db, session, employee, incoming):
 
 
 def _on_unit_price(db, session, employee, incoming):
-    if _skipped(incoming):
+    if inputs.skipped(incoming):
         _set(session, unit_price=None)
     else:
-        unit = _amount(incoming)
+        unit = inputs.amount(incoming)
         if unit > Decimal(_data(session)["total"]):
             raise InvalidInput(msg.EXP_UNIT_GT_TOTAL)
         _set(session, unit_price=str(unit))
@@ -330,7 +298,7 @@ def _on_issue_date(db, session, employee, incoming):
 
 
 def _on_nit(db, session, employee, incoming):
-    if _skipped(incoming):
+    if inputs.skipped(incoming):
         _set(session, supplier_nit=None, supplier_name=None)
         return _advance(session, NIT)
     if incoming.kind != Kind.TEXT:
@@ -353,13 +321,13 @@ def _on_nit(db, session, employee, incoming):
 
 
 def _on_supplier_name(db, session, employee, incoming):
-    _set(session, supplier_name=_text(incoming, min_len=2, max_len=200))
+    _set(session, supplier_name=inputs.text(incoming, min_len=2, max_len=200))
     session.state = RUT  # proveedor nuevo: se ofrece adjuntar su RUT
     return ()
 
 
 def _on_rut(db, session, employee, incoming):
-    if not _skipped(incoming):
+    if not inputs.skipped(incoming):
         raise InvalidInput()
     return _advance(session, NIT)
 
@@ -372,7 +340,7 @@ def _on_photo(db, session, employee, incoming):
 
 
 def _on_invoice_number(db, session, employee, incoming):
-    value = None if _skipped(incoming) else _text(incoming, min_len=1, max_len=50)
+    value = None if inputs.skipped(incoming) else inputs.text(incoming, min_len=1, max_len=50)
     _set(session, invoice_number=value)
     return _advance(session, INVOICE_NUMBER)
 
@@ -394,7 +362,7 @@ def _on_location(db, session, employee, incoming):
     if incoming.kind == Kind.LOCATION and incoming.latitude is not None and incoming.longitude is not None:
         _set(session, location={"lat": str(incoming.latitude), "lon": str(incoming.longitude)})
         note = msg.EXP_LOCATION_SAVED
-    elif _skipped(incoming):
+    elif inputs.skipped(incoming):
         _set(session, location=None)
         note = msg.EXP_LOCATION_SKIPPED
     else:
@@ -578,20 +546,6 @@ def cancel(session: BotSession, employee: Employee, chat_id: int) -> list[Action
 # --- Archivos (fotos de facturas y RUT) ---
 
 
-def _request_file(session: BotSession, incoming: Incoming, purpose: str) -> list[Action]:
-    """Pide a n8n que descargue el archivo. Se rechaza ANTES de descargar si es muy grande o de otro tipo."""
-    file = incoming.file
-    max_mb = get_settings().max_upload_mb
-    if file.file_size and file.file_size > max_mb * 1024 * 1024:
-        raise InvalidInput(msg.EXP_FILE_TOO_LARGE.format(mb=max_mb))
-    if incoming.kind == Kind.DOCUMENT and (file.mime_type or "") not in ALLOWED_MIME:
-        raise InvalidInput(msg.EXP_FILE_TYPE)
-    return [
-        send_message(incoming.chat_id, msg.EXP_RECEIVING),
-        store_file(file_id=file.file_id, file_unique_id=file.file_unique_id,
-                   telegram_user_id=incoming.user_id, purpose=purpose, file_name=file.file_name),
-    ]
-
 
 def _on_file(db: Session, session: BotSession, employee: Employee, incoming: Incoming) -> list[Action]:
     chat = incoming.chat_id
@@ -602,7 +556,7 @@ def _on_file(db: Session, session: BotSession, employee: Employee, incoming: Inc
     else:
         return [send_message(chat, msg.EXP_ALREADY_HAVE_PHOTO), *prompt(db, session, employee, chat)]
     try:
-        return _request_file(session, incoming, purpose)
+        return inputs.request_file(incoming, purpose)
     except InvalidInput as error:
         return [send_message(chat, error.message), *prompt(db, session, employee, chat)]
 
@@ -614,7 +568,7 @@ def start_with_file(db: Session, session: BotSession, employee: Employee, incomi
     session.draft_expense_id = None
     session.state = WHICH_MONEY if _open_viaticos(db, employee) else HAD_MONEY
     try:
-        return _request_file(session, incoming, INVOICE)
+        return inputs.request_file(incoming, INVOICE)
     except InvalidInput as error:
         return [send_message(incoming.chat_id, error.message), *prompt(db, session, employee, incoming.chat_id)]
 

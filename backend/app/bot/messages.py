@@ -175,6 +175,40 @@ NO_EXPENSES = "Todavía no has registrado gastos."
 EXPENSES_HEADER = "🧾 <b>Tus últimos gastos</b>"
 EXPENSE_LINE = "\n• {date} — {description}: {total} <i>({status})</i>"
 
+# --- Corrección de gastos (paso 4.4) ---
+
+FIX_LIST_HEADER = "🧾 <b>Tus últimos gastos</b>\nToca uno para ver el detalle."
+FIX_DETAIL = (
+    "🧾 <b>Gasto del {date}</b>\n\n"
+    "<b>Descripción:</b> {description}\n"
+    "<b>Valor total:</b> {total}\n"
+    "<b>Establecimiento:</b> {supplier}\n"
+    "<b>N.º de factura:</b> {invoice_number}\n"
+    "<b>Tipo de gasto:</b> {category}\n"
+    "<b>Fotos:</b> {photos}\n"
+    "<b>Estado:</b> {status}"
+)
+FIX_REJECTED = "\n\n❗ <b>Motivo del rechazo:</b> {reason}"
+FIX_LOCKED = "\n\n🔒 Este gasto ya no se puede modificar."
+FIX_CAN_RESUBMIT = "\n\nCorrige lo necesario y pulsa «📤 Reenviar»."
+FIX_EDIT = "✏️ Corregir"
+FIX_RESUBMIT = "📤 Reenviar"
+FIX_BACK_TO_LIST = "↩️ Mis gastos"
+FIX_WHICH_FIELD = "✏️ ¿Qué dato quieres corregir?"
+FIX_ADD_PHOTO = "📸 Agregar foto"
+FIX_PHOTO_VIA_MENU = "Para agregar una foto a este gasto usa ✏️ Corregir → 📸 Agregar foto."
+FIX_ASK_PHOTO ="📸 Envía la nueva foto de la factura (como archivo conserva el GPS)."
+FIX_SAVED = "✅ Corrección guardada."
+FIX_PHOTO_ADDED = "✅ Foto agregada al gasto."
+FIX_NO_CHANGES = "No hubo cambios."
+FIX_RESUBMITTED = "📤 <b>Gasto reenviado</b> para revisión."
+FIX_NOT_FOUND = "No encontré ese gasto."
+FIX_LOCKED_ERROR = "🔒 {reason}"
+FIX_CONFLICT = (
+    "⚠️ El administrador modificó este gasto mientras lo corregías. "
+    "Te muestro la versión actual; revisa y vuelve a intentarlo."
+)
+
 EXPENSE_STATUS_LABELS = {
     "draft": "borrador",
     "pending_completion": "pendiente de completar",

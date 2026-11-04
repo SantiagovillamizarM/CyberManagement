@@ -252,6 +252,15 @@ def _items_snapshot(expense: Expense) -> list[dict[str, Any]]:
     ]
 
 
+MONEY_FIELDS = ("subtotal", "tax_total", "total")
+
+
+def _quantize_money(changes: dict[str, Any]) -> None:
+    for field in MONEY_FIELDS:
+        if changes.get(field) is not None:
+            changes[field] = Decimal(changes[field]).quantize(CENT)
+
+
 def _quantize_location(changes: dict[str, Any]) -> None:
     for field in ("location_lat", "location_lon"):
         if changes.get(field) is not None:
@@ -281,6 +290,11 @@ def warnings(expense: Expense) -> list[str]:
 
 
 # --- Creación y edición ---
+
+
+def employee_can_edit(db: Session, expense: Expense) -> bool:
+    """¿El empleado dueño puede corregir este gasto? (misma regla que aplica _assert_can_edit)."""
+    return expense.status not in EMPLOYEE_LOCKED and not _viatico_is_closed(db, expense)
 
 
 def _assert_can_edit(db: Session, expense: Expense, actor: Actor) -> None:
@@ -320,6 +334,7 @@ def create_expense(
         raise ExpenseRuleError("El empleado está desactivado")
 
     data = {k: v for k, v in data.items() if k in EDITABLE_FIELDS}
+    _quantize_money(data)
     _quantize_location(data)
     expense = Expense(
         id=uuid.uuid4(),
@@ -366,11 +381,31 @@ def update_expense(
     supplier_name: str | None = None,
 ) -> Expense:
     """Aplica cambios parciales. `supplier_nit=None` quita el proveedor; omitirlo no lo toca."""
+    _assert_can_edit(db, expense, actor)
     if version != expense.version:
         raise VersionConflictError
-    _assert_can_edit(db, expense, actor)
+    # - Sin autoflush: las consultas de validación (duplicados, categoría...) no deben enviar
+    #   los cambios a la BD antes de validarlos; si no, la BD rechazaría un duplicado con
+    #   un error 500 en vez de que lo detectemos nosotros y respondamos 409.
+    # - Punto de guardado: si la edición falla, el gasto vuelve a como estaba (no queda
+    #   "a medio modificar" en memoria para quien siga usando la sesión).
+    with db.no_autoflush, db.begin_nested():
+        return _update_expense(db, expense, changes, actor=actor, items=items,
+                               supplier_nit=supplier_nit, supplier_name=supplier_name)
 
+
+def _update_expense(
+    db: Session,
+    expense: Expense,
+    changes: dict[str, Any],
+    *,
+    actor: Actor,
+    items: list[dict[str, Any]] | None,
+    supplier_nit: Any,
+    supplier_name: str | None,
+) -> Expense:
     changes = {k: v for k, v in changes.items() if k in EDITABLE_FIELDS}
+    _quantize_money(changes)
     _quantize_location(changes)
     changed = audit.apply_changes(
         db, expense, changes, company_id=expense.company_id, entity_type=ENTITY, actor=actor

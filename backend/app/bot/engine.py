@@ -9,6 +9,7 @@ Máquina de estados (bot_sessions.state):
 
     Empleado vinculado:
         menu ──(📸 Registrar gasto)──► exp:*  (ver expense_flow.py) ──► menu
+        menu ──(🧾 Mis gastos → un gasto)──► fix:*  (ver fix_flow.py) ──► menu
 """
 
 import html
@@ -20,7 +21,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.bot import messages as msg
-from app.bot import expense_flow
+from app.bot import expense_flow, fix_flow
 from app.bot.actions import Action, Keyboard, answer_callback, remove_buttons, send_message
 from app.bot.menu import CB_BALANCE, CB_EXPENSE, CB_EXPENSES, CB_HELP, MENU, menu_action
 from app.bot.updates import Incoming, Kind, parse_update
@@ -197,6 +198,7 @@ def _linked(db: Session, session: BotSession, employee: Employee, incoming: Inco
     command = incoming.command if incoming.kind == Kind.COMMAND else None
     choice = incoming.callback_data
     in_expense = expense_flow.is_active(session)
+    in_fix = fix_flow.is_active(session)
 
     if command == "cancelar":
         if in_expense:
@@ -209,6 +211,10 @@ def _linked(db: Session, session: BotSession, employee: Employee, incoming: Inco
         _reset(session, MENU)
         return [menu_action(chat, employee)]
 
+    # Fuera de un registro, "Mis gastos" es una lista interactiva para consultar y corregir.
+    if not in_expense and (command == "gastos" or choice == CB_EXPENSES):
+        return fix_flow.list_expenses(db, session, employee, chat)
+
     # Consultas que no interrumpen un registro en curso: se responde y se repite la pregunta.
     info = None
     if command == "ayuda" or (choice == CB_HELP and not in_expense):
@@ -218,13 +224,19 @@ def _linked(db: Session, session: BotSession, employee: Employee, incoming: Inco
     elif command == "gastos" or (choice == CB_EXPENSES and not in_expense):
         info = _expenses_text(db, employee)
     if info is not None:
-        follow = expense_flow.prompt(db, session, employee, chat) if in_expense else [menu_action(chat, employee)]
-        return [send_message(chat, info), *follow]
+        if in_expense:
+            return [send_message(chat, info), *expense_flow.prompt(db, session, employee, chat)]
+        _reset(session, MENU)
+        return [send_message(chat, info), menu_action(chat, employee)]
 
-    if incoming.file is not None and not in_expense:
-        return expense_flow.start_with_file(db, session, employee, incoming)
+    if (choice or "").startswith(fix_flow.CB_OPEN) and not in_expense:
+        return fix_flow.open_expense(db, session, employee, chat, choice.removeprefix(fix_flow.CB_OPEN))
     if choice == CB_EXPENSE and not in_expense:
         return expense_flow.start(db, session, employee, chat)
+    if in_fix:
+        return fix_flow.handle(db, session, employee, incoming)
+    if incoming.file is not None and not in_expense:
+        return expense_flow.start_with_file(db, session, employee, incoming)
     if in_expense:
         return expense_flow.handle(db, session, employee, incoming)
 
@@ -310,6 +322,9 @@ def handle_file(
         if expense_flow.is_active(session):
             reply += expense_flow.prompt(db, session, employee, chat)
         return reply
-    actions = expense_flow.on_file_stored(db, session, employee, chat, stored.document, purpose)
+    if fix_flow.is_active(session):
+        actions = fix_flow.on_file_stored(db, session, employee, chat, stored.document)
+    else:
+        actions = expense_flow.on_file_stored(db, session, employee, chat, stored.document, purpose)
     db.flush()
     return actions

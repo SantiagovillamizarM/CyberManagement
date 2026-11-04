@@ -105,7 +105,24 @@ Python: guarda en documents DE INMEDIATO ─► continúa la conversación ─�
 `cm:store_file` es una **acción de transporte**, no un método de Telegram. n8n la reconoce y descarga el
 archivo; la decisión de qué hacer con él la toma Python.
 
-Pendiente: corrección de gastos enviados desde el bot (paso 4.4).
+## Consulta y corrección de gastos (paso 4.4) — `app/bot/fix_flow.py`
+
+```
+🧾 Mis gastos ─► [03/11 · Almuerzo · $45.000 · enviado] … (últimos 10; 🔒 = ya no se puede modificar)
+   ─► detalle (con el motivo si fue rechazado) ─► [✏️ Corregir] [📤 Reenviar] [↩️ Mis gastos]
+        ─► Descripción · Valor total · Fecha · NIT · N.º de factura · Tipo de gasto · 📸 Agregar foto
+```
+
+| Regla | Detalle |
+|---|---|
+| Se guarda al instante | Cada corrección llama a `services.expenses.update_expense`: mismas reglas que el panel |
+| Quién puede | Solo el dueño del gasto (uno ajeno se trata como inexistente) y mientras no esté aprobado, cerrado ni en un viático cerrado |
+| Historial | Campo por campo, con el empleado como autor |
+| Edición simultánea | Si el admin lo modificó mientras tanto → aviso y se muestra la versión actual; nada se pisa |
+| Duplicados | Si la corrección deja una factura repetida → aviso y no cambia nada |
+| Reenviar | Para gastos rechazados (o borradores): vuelven a `submitted` y se borra el motivo del rechazo |
+| Fotos | "Agregar foto" asocia una foto nueva; las anteriores se conservan |
+| Validaciones | Las mismas del registro, en `app/bot/inputs.py` (compartido) |
 
 ## Puesta en marcha en desarrollo
 
