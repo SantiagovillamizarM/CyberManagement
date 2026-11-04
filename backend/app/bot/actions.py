@@ -49,6 +49,22 @@ def send_message(
     return {"method": "sendMessage", "payload": payload}
 
 
+def store_file(*, file_id: str, file_unique_id: str, telegram_user_id: int, purpose: str,
+               file_name: str | None) -> Action:
+    """Acción de TRANSPORTE (no es de Telegram): n8n descarga el archivo con getFile y
+    lo sube a POST /api/internal/telegram/files. Python decide qué hacer al recibirlo."""
+    return {
+        "method": "cm:store_file",
+        "payload": {
+            "file_id": file_id,
+            "file_unique_id": file_unique_id,
+            "telegram_user_id": telegram_user_id,
+            "purpose": purpose,  # "invoice" o "rut"
+            "file_name": file_name or "",
+        },
+    }
+
+
 def answer_callback(callback_id: str) -> Action:
     """Quita el "relojito" de carga del botón que el usuario pulsó."""
     return {"method": "answerCallbackQuery", "payload": {"callback_query_id": callback_id}}

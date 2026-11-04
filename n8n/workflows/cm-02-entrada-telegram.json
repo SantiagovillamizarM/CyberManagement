@@ -53,15 +53,38 @@
       "typeVersion": 2,
       "position": [520, 0],
       "parameters": {
-        "jsCode": "// Una acción = un ítem. Sin acciones, el flujo termina aquí.\nconst actions = $input.first().json.actions || [];\nreturn actions.map(action => ({ json: action }));"
+        "jsCode": "// Una acción = un ítem. Sin acciones, el flujo termina aquí.\nreturn $input.all().flatMap(item => (item.json.actions || []).map(action => ({ json: action })));"
       }
+    },
+    {
+      "id": "5f0c2d6e-7a1b-4c3d-9e8f-0a1b2c3d4e05",
+      "name": "¿Es mensaje de Telegram?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [780, 0],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "id": "b7c1d2e3-f4a5-4b6c-8d7e-9f0a1b2c3d4e",
+              "leftValue": "={{ $json.method }}",
+              "rightValue": "cm:store_file",
+              "operator": { "type": "string", "operation": "notEquals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "notes": "Sí: método de la Bot API. No: acción de transporte cm:store_file (descargar y subir un archivo). La rama Sí se ejecuta primero, así 'Recibiendo…' llega antes."
     },
     {
       "id": "5f0c2d6e-7a1b-4c3d-9e8f-0a1b2c3d4e04",
       "name": "Telegram: ejecutar acción",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [780, 0],
+      "position": [1040, -120],
       "parameters": {
         "method": "POST",
         "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/{{ $json.method }}",
@@ -73,6 +96,83 @@
         }
       },
       "notes": "Ejecuta cada acción tal cual (sendMessage, answerCallbackQuery...). No interpreta nada."
+    },
+    {
+      "id": "5f0c2d6e-7a1b-4c3d-9e8f-0a1b2c3d4e06",
+      "name": "Telegram: getFile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1040, 160],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/getFile",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ file_id: $json.payload.file_id }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "notes": "Telegram devuelve la ruta temporal del archivo (válida por 1 hora)."
+    },
+    {
+      "id": "5f0c2d6e-7a1b-4c3d-9e8f-0a1b2c3d4e07",
+      "name": "Telegram: descargar archivo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1300, 160],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.telegram.org/file/bot{{ $env.TELEGRAM_BOT_TOKEN }}/{{ $json.result.file_path }}",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": { "responseFormat": "file", "outputPropertyName": "data" }
+          }
+        }
+      }
+    },
+    {
+      "id": "5f0c2d6e-7a1b-4c3d-9e8f-0a1b2c3d4e08",
+      "name": "Python: guardar archivo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 160],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CM_API_URL }}/api/internal/telegram/files",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Internal-Token", "value": "={{ $env.INTERNAL_API_TOKEN }}" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            { "parameterType": "formBinaryData", "name": "file", "inputDataFieldName": "data" },
+            { "parameterType": "formData", "name": "telegram_user_id", "value": "={{ $('¿Es mensaje de Telegram?').item.json.payload.telegram_user_id }}" },
+            { "parameterType": "formData", "name": "purpose", "value": "={{ $('¿Es mensaje de Telegram?').item.json.payload.purpose }}" },
+            { "parameterType": "formData", "name": "file_unique_id", "value": "={{ $('¿Es mensaje de Telegram?').item.json.payload.file_unique_id }}" },
+            { "parameterType": "formData", "name": "file_name", "value": "={{ $('¿Es mensaje de Telegram?').item.json.payload.file_name }}" }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "notes": "Python valida el archivo, lo guarda DE INMEDIATO (regla fundamental) y responde con las acciones siguientes."
+    },
+    {
+      "id": "5f0c2d6e-7a1b-4c3d-9e8f-0a1b2c3d4e09",
+      "name": "Separar acciones (archivo)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1820, 160],
+      "parameters": {
+        "jsCode": "return $input.all().flatMap(item => (item.json.actions || []).map(action => ({ json: action })));"
+      }
     }
   ],
   "connections": {
@@ -83,6 +183,24 @@
       "main": [[{ "node": "Separar acciones", "type": "main", "index": 0 }]]
     },
     "Separar acciones": {
+      "main": [[{ "node": "¿Es mensaje de Telegram?", "type": "main", "index": 0 }]]
+    },
+    "¿Es mensaje de Telegram?": {
+      "main": [
+        [{ "node": "Telegram: ejecutar acción", "type": "main", "index": 0 }],
+        [{ "node": "Telegram: getFile", "type": "main", "index": 0 }]
+      ]
+    },
+    "Telegram: getFile": {
+      "main": [[{ "node": "Telegram: descargar archivo", "type": "main", "index": 0 }]]
+    },
+    "Telegram: descargar archivo": {
+      "main": [[{ "node": "Python: guardar archivo", "type": "main", "index": 0 }]]
+    },
+    "Python: guardar archivo": {
+      "main": [[{ "node": "Separar acciones (archivo)", "type": "main", "index": 0 }]]
+    },
+    "Separar acciones (archivo)": {
       "main": [[{ "node": "Telegram: ejecutar acción", "type": "main", "index": 0 }]]
     }
   },

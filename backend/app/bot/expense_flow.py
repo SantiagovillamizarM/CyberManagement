@@ -1,11 +1,14 @@
-"""Conversación guiada para registrar un gasto (paso 4.2: registro manual).
+"""Conversación guiada para registrar un gasto.
 
 Cada paso es un estado "exp:<paso>" en bot_sessions. Lo que el empleado va
 respondiendo se guarda en bot_sessions.data, así que la conversación sobrevive a
-reinicios de la API. NADA se escribe en gastos/viáticos hasta que confirma.
+reinicios de la API. Los gastos y viáticos NO se escriben hasta que confirma.
 
-    [viático] ─► descripción ─► total ─► valor unitario ─► fecha ─► NIT ─► (nombre)
-              ─► n.º factura ─► categoría ─► ubicación ─► resumen ─► confirmar / editar
+EXCEPCIÓN (regla fundamental): las fotos y archivos SÍ se guardan apenas llegan
+(tabla documents), aunque luego cancele. Nunca se pierde una foto de una factura.
+
+    [viático] ─► foto ─► descripción ─► total ─► valor unitario ─► fecha ─► NIT
+              ─► (nombre ─► RUT) ─► n.º factura ─► categoría ─► ubicación ─► resumen
 """
 
 import html
@@ -18,12 +21,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.bot import messages as msg
-from app.bot.actions import Action, Keyboard, send_message
+from app.bot.actions import Action, Keyboard, send_message, store_file
 from app.bot.menu import MENU, menu_action
 from app.bot.updates import Incoming, Kind
-from app.models import BotSession, Employee, Supplier, Viatico
+from app.core.config import get_settings
+from app.models import BotSession, Document, Employee, Supplier, Viatico
 from app.models.enums import LocationSource, MovementSource, PaymentSource, ViaticoStatus
-from app.services import catalog, expenses, viaticos
+from app.services import audit, catalog, documents, expenses, viaticos
 from app.services.audit import Actor
 from app.utils.dates import InvalidDateError, local_today, parse_invoice_date
 from app.utils.money import InvalidAmountError, format_cop, parse_cop
@@ -34,12 +38,14 @@ WHICH_MONEY = "exp:which_money"  # tiene viáticos abiertos: elige cuál
 HAD_MONEY = "exp:had_money"  # no tiene: "¿Contabas con dinero previo...?"
 INITIAL_AMOUNT = "exp:initial_amount"
 PURPOSE = "exp:purpose"
+PHOTO = "exp:photo"
 DESCRIPTION = "exp:description"
 TOTAL = "exp:total"
 UNIT_PRICE = "exp:unit_price"
 ISSUE_DATE = "exp:issue_date"
 NIT = "exp:nit"
 SUPPLIER_NAME = "exp:supplier_name"
+RUT = "exp:rut"  # solo para proveedores nuevos
 INVOICE_NUMBER = "exp:invoice_number"
 CATEGORY = "exp:category"
 LOCATION = "exp:location"
@@ -47,8 +53,9 @@ CONFIRM = "exp:confirm"
 EDIT_CHOICE = "exp:edit_choice"
 
 # Orden de los datos de la factura. Al editar, después de un campo se vuelve al resumen.
-FIELD_ORDER = [DESCRIPTION, TOTAL, UNIT_PRICE, ISSUE_DATE, NIT, INVOICE_NUMBER, CATEGORY, LOCATION]
+FIELD_ORDER = [PHOTO, DESCRIPTION, TOTAL, UNIT_PRICE, ISSUE_DATE, NIT, INVOICE_NUMBER, CATEGORY, LOCATION]
 EDITABLE = {
+    "photo": PHOTO,
     "description": DESCRIPTION,
     "total": TOTAL,
     "unit_price": UNIT_PRICE,
@@ -66,6 +73,11 @@ CB_TODAY, CB_YESTERDAY = "exp:date:today", "exp:date:yesterday"
 CB_CATEGORY = "exp:cat:"
 CB_CONFIRM, CB_EDIT, CB_CANCEL = "exp:ok", "exp:edit", "exp:cancel"
 CB_FIELD, CB_BACK = "exp:field:", "exp:back"
+CB_NO_PHOTO = "exp:nophoto"
+
+# Tipos de archivo aceptados (la validación definitiva se hace sobre el contenido descargado).
+ALLOWED_MIME = {"image/jpeg", "image/png", "image/webp", "application/pdf"}
+INVOICE, RUT_FILE = "invoice", "rut"  # propósito del archivo
 
 
 class InvalidInput(Exception):
@@ -91,6 +103,11 @@ def _set(session: BotSession, **values: Any) -> None:
 
 def _open_viaticos(db: Session, employee: Employee) -> list[Viatico]:
     return viaticos.list_viaticos(db, employee.company_id, employee_id=employee.id, status=ViaticoStatus.OPEN)
+
+
+def _after_money(session: BotSession) -> str:
+    """Tras elegir el dinero se pide la foto, salvo que ya la tengamos (la envió desde el menú)."""
+    return DESCRIPTION if _data(session).get("document_id") else PHOTO
 
 
 # --- Inicio ---
@@ -127,6 +144,10 @@ def prompt(db: Session, session: BotSession, employee: Employee, chat_id: int) -
         return [send_message(chat_id, msg.EXP_ASK_INITIAL)]
     if state == PURPOSE:
         return [send_message(chat_id, msg.EXP_ASK_PURPOSE, skip)]
+    if state == PHOTO:
+        return [send_message(chat_id, msg.EXP_ASK_PHOTO, [[(msg.EXP_NO_PHOTO, CB_NO_PHOTO)]])]
+    if state == RUT:
+        return [send_message(chat_id, msg.EXP_ASK_RUT, skip)]
     if state == DESCRIPTION:
         return [send_message(chat_id, msg.EXP_ASK_DESCRIPTION)]
     if state == TOTAL:
@@ -172,6 +193,8 @@ def handle(db: Session, session: BotSession, employee: Employee, incoming: Incom
     - una LISTA: la respuesta completa (ej. al guardar o cancelar); no se agrega nada.
     """
     chat = incoming.chat_id
+    if incoming.file is not None:  # las fotos y archivos se atienden en cualquier paso
+        return _on_file(db, session, employee, incoming)
     try:
         result = _HANDLERS[session.state](db, session, employee, incoming)
     except InvalidInput as error:
@@ -235,7 +258,7 @@ def _on_which_money(db, session, employee, incoming):
         _set(session, payment_source=PaymentSource.VIATICO.value, viatico_id=str(viatico_id), new_viatico=None)
     else:
         raise InvalidInput()
-    session.state = DESCRIPTION
+    session.state = _after_money(session)
     return ()
 
 
@@ -244,7 +267,7 @@ def _on_had_money(db, session, employee, incoming):
         session.state = INITIAL_AMOUNT
     elif incoming.callback_data == CB_NO:
         _set(session, payment_source=PaymentSource.OWN_MONEY.value, viatico_id=None, new_viatico=None)
-        session.state = DESCRIPTION
+        session.state = _after_money(session)
     else:
         raise InvalidInput()
     return ()
@@ -261,7 +284,7 @@ def _on_initial_amount(db, session, employee, incoming):
 def _on_purpose(db, session, employee, incoming):
     purpose = None if _skipped(incoming) else _text(incoming, min_len=3, max_len=200)
     _set(session, new_viatico={**_data(session)["new_viatico"], "purpose": purpose})
-    session.state = DESCRIPTION
+    session.state = _after_money(session)
     return ()
 
 
@@ -331,7 +354,21 @@ def _on_nit(db, session, employee, incoming):
 
 def _on_supplier_name(db, session, employee, incoming):
     _set(session, supplier_name=_text(incoming, min_len=2, max_len=200))
+    session.state = RUT  # proveedor nuevo: se ofrece adjuntar su RUT
+    return ()
+
+
+def _on_rut(db, session, employee, incoming):
+    if not _skipped(incoming):
+        raise InvalidInput()
     return _advance(session, NIT)
+
+
+def _on_photo(db, session, employee, incoming):
+    if incoming.callback_data != CB_NO_PHOTO:
+        raise InvalidInput(msg.EXP_ASK_PHOTO)
+    _set(session, document_id=None, document_gps=False)  # al editar: quita la foto
+    return _advance(session, PHOTO)
 
 
 def _on_invoice_number(db, session, employee, incoming):
@@ -402,6 +439,8 @@ _HANDLERS = {
     ISSUE_DATE: _on_issue_date,
     NIT: _on_nit,
     SUPPLIER_NAME: _on_supplier_name,
+    RUT: _on_rut,
+    PHOTO: _on_photo,
     INVOICE_NUMBER: _on_invoice_number,
     CATEGORY: _on_category,
     LOCATION: _on_location,
@@ -442,8 +481,18 @@ def _summary(db: Session, session: BotSession) -> str:
         invoice_number=html.escape(data.get("invoice_number") or "—"),
         category=html.escape(data.get("category_name") or "—"),
         payment=payment,
-        location="Compartida ✅" if data.get("location") else msg.NOT_AVAILABLE,
+        location=_location_label(data),
+        photo=("Adjunta ✅ (con GPS)" if data.get("document_gps") else "Adjunta ✅")
+        if data.get("document_id") else "Sin foto",
     )
+
+
+def _location_label(data: dict[str, Any]) -> str:
+    if data.get("location"):
+        return "Compartida ✅"
+    if data.get("document_gps"):
+        return "Del GPS de la foto ✅"
+    return msg.NOT_AVAILABLE
 
 
 def _save(db: Session, session: BotSession, employee: Employee, chat_id: int) -> list[Action]:
@@ -483,6 +532,17 @@ def _save(db: Session, session: BotSession, employee: Employee, chat_id: int) ->
                 supplier_nit=data.get("supplier_nit"), supplier_name=data.get("supplier_name"),
                 actor=actor, location_source=LocationSource.TELEGRAM if data.get("location") else None,
             )
+            if data.get("document_id"):
+                document = db.get(Document, uuid.UUID(data["document_id"]))
+                if document is not None and document.expense_id in (None, expense.id):
+                    # Si la foto trae GPS y no se compartió ubicación, el gasto queda con origen EXIF.
+                    documents.attach_to_expense(db, document, expense, actor)
+            if data.get("rut_document_id") and expense.supplier_id:
+                rut = db.get(Document, uuid.UUID(data["rut_document_id"]))
+                if rut is not None and rut.supplier_id is None:
+                    rut.supplier_id = expense.supplier_id
+                    audit.log(db, company_id=expense.company_id, entity_type="document", entity_id=rut.id,
+                              action="attach_rut", actor=actor, field="supplier_id", new_value=expense.supplier_id)
             expenses.submit(db, expense, actor)
     except expenses.DuplicateInvoiceError as exc:
         session.state = CONFIRM
@@ -513,3 +573,72 @@ def cancel(session: BotSession, employee: Employee, chat_id: int) -> list[Action
     session.data = {}
     session.draft_expense_id = None
     return [send_message(chat_id, msg.EXP_CANCELLED, remove_keyboard=True), menu_action(chat_id, employee)]
+
+
+# --- Archivos (fotos de facturas y RUT) ---
+
+
+def _request_file(session: BotSession, incoming: Incoming, purpose: str) -> list[Action]:
+    """Pide a n8n que descargue el archivo. Se rechaza ANTES de descargar si es muy grande o de otro tipo."""
+    file = incoming.file
+    max_mb = get_settings().max_upload_mb
+    if file.file_size and file.file_size > max_mb * 1024 * 1024:
+        raise InvalidInput(msg.EXP_FILE_TOO_LARGE.format(mb=max_mb))
+    if incoming.kind == Kind.DOCUMENT and (file.mime_type or "") not in ALLOWED_MIME:
+        raise InvalidInput(msg.EXP_FILE_TYPE)
+    return [
+        send_message(incoming.chat_id, msg.EXP_RECEIVING),
+        store_file(file_id=file.file_id, file_unique_id=file.file_unique_id,
+                   telegram_user_id=incoming.user_id, purpose=purpose, file_name=file.file_name),
+    ]
+
+
+def _on_file(db: Session, session: BotSession, employee: Employee, incoming: Incoming) -> list[Action]:
+    chat = incoming.chat_id
+    if session.state == RUT:
+        purpose = RUT_FILE
+    elif session.state == PHOTO or not _data(session).get("document_id"):
+        purpose = INVOICE  # se acepta la foto aunque llegue en otro paso
+    else:
+        return [send_message(chat, msg.EXP_ALREADY_HAVE_PHOTO), *prompt(db, session, employee, chat)]
+    try:
+        return _request_file(session, incoming, purpose)
+    except InvalidInput as error:
+        return [send_message(chat, error.message), *prompt(db, session, employee, chat)]
+
+
+def start_with_file(db: Session, session: BotSession, employee: Employee, incoming: Incoming) -> list[Action]:
+    """El empleado envió la foto desde el menú: se guarda y se inicia el registro con ella.
+    La pregunta de viáticos se hace igual (después de recibir la foto)."""
+    session.data = {"flow": "expense"}
+    session.draft_expense_id = None
+    session.state = WHICH_MONEY if _open_viaticos(db, employee) else HAD_MONEY
+    try:
+        return _request_file(session, incoming, INVOICE)
+    except InvalidInput as error:
+        return [send_message(incoming.chat_id, error.message), *prompt(db, session, employee, incoming.chat_id)]
+
+
+def on_file_stored(
+    db: Session, session: BotSession, employee: Employee, chat_id: int,
+    document: Document, purpose: str,
+) -> list[Action]:
+    """El archivo YA está guardado en documents. Se continúa la conversación."""
+    if not is_active(session):
+        # Canceló mientras se descargaba: el archivo queda guardado igual (nunca se pierde).
+        return [send_message(chat_id, msg.EXP_FILE_NO_FLOW), menu_action(chat_id, employee)]
+
+    if purpose == RUT_FILE:
+        _set(session, rut_document_id=str(document.id))
+        if session.state == RUT:
+            _advance(session, NIT)
+        return [send_message(chat_id, msg.EXP_RUT_SAVED), *prompt(db, session, employee, chat_id)]
+
+    if document.expense_id is not None:
+        return [send_message(chat_id, msg.EXP_PHOTO_IN_OTHER_EXPENSE), *prompt(db, session, employee, chat_id)]
+    has_gps = bool((document.exif or {}).get("gps"))
+    _set(session, document_id=str(document.id), document_gps=has_gps)
+    if session.state == PHOTO:
+        _advance(session, PHOTO)
+    note = msg.EXP_PHOTO_SAVED_GPS if has_gps else msg.EXP_PHOTO_SAVED
+    return [send_message(chat_id, note), *prompt(db, session, employee, chat_id)]

@@ -66,7 +66,30 @@ EXP_HAD_MONEY = "💰 ¿Contabas con dinero previo para realizar estos gastos (v
 YES, NO = "Sí", "No"
 EXP_ASK_INITIAL = "¿Cuánto dinero tenías disponible inicialmente?\nEjemplo: <code>500.000</code>"
 EXP_ASK_PURPOSE = "¿Para qué es ese dinero? Ejemplo: <i>Viaje a Medellín</i>"
-EXP_ASK_DESCRIPTION = "📝 Describe el gasto.\nEjemplo: <i>Almuerzo con cliente</i>"
+EXP_ASK_PHOTO = (
+    "📸 Envía la <b>foto de la factura</b>.\n\n"
+    "💡 Si la envías como <b>archivo</b> (📎 → Archivo) se conserva la ubicación GPS de la foto.\n"
+    "Si no tienes foto, pulsa «Registrar sin foto»."
+)
+EXP_NO_PHOTO = "✍️ Registrar sin foto"
+EXP_RECEIVING = "📥 Recibiendo el archivo…"
+EXP_PHOTO_SAVED = "✅ Foto de la factura guardada."
+EXP_PHOTO_SAVED_GPS = "✅ Foto de la factura guardada (incluye ubicación GPS)."
+EXP_ALREADY_HAVE_PHOTO = "Ya tengo la foto de esta factura. Si quieres cambiarla, usa ✏️ Editar → Foto."
+EXP_PHOTO_IN_OTHER_EXPENSE = (
+    "⚠️ Esta foto ya está registrada en otro gasto, así que no la asocié.\n"
+    "Envía otra foto o continúa sin foto."
+)
+EXP_ASK_RUT = "📄 ¿Tienes el <b>RUT</b> del proveedor? Envíalo como foto o PDF.\n<i>Es opcional.</i>"
+EXP_RUT_SAVED = "✅ RUT guardado."
+EXP_FILE_TOO_LARGE = "⚠️ El archivo pesa más de {mb} MB. Envía uno más liviano."
+EXP_FILE_TYPE = "⚠️ Solo puedo recibir fotos (JPG, PNG, WEBP) o archivos PDF."
+EXP_FILE_INVALID = "⚠️ No pude usar ese archivo: {reason}"
+EXP_FILE_NO_FLOW = (
+    "📥 Guardé tu archivo. Para registrar un gasto con él, toca «📸 Registrar gasto» "
+    "y envíalo de nuevo."
+)
+EXP_ASK_DESCRIPTION ="📝 Describe el gasto.\nEjemplo: <i>Almuerzo con cliente</i>"
 EXP_ASK_TOTAL = "💵 ¿Cuál es el <b>valor total</b> de la factura?\nEjemplo: <code>45.000</code>"
 EXP_ASK_UNIT = (
     "🔢 ¿Cuál es el <b>valor unitario</b>?\n"
@@ -100,7 +123,8 @@ EXP_SUMMARY = (
     "<b>N.º de factura:</b> {invoice_number}\n"
     "<b>Tipo de gasto:</b> {category}\n"
     "<b>Pago:</b> {payment}\n"
-    "<b>Ubicación:</b> {location}\n\n"
+    "<b>Ubicación:</b> {location}\n"
+    "<b>Foto:</b> {photo}\n\n"
     "¿Los datos son correctos?"
 )
 EXP_PAY_VIATICO = "Viático «{purpose}»"
@@ -112,6 +136,7 @@ EXP_CONFIRM, EXP_EDIT, EXP_CANCEL = "✅ Confirmar", "✏️ Editar", "❌ Cance
 EXP_WHICH_FIELD = "✏️ ¿Qué dato quieres corregir?"
 EXP_BACK_TO_SUMMARY = "↩️ Volver al resumen"
 EXP_FIELD_LABELS = {
+    "photo": "Foto",
     "description": "Descripción",
     "total": "Valor total",
     "unit_price": "Valor unitario",

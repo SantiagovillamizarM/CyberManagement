@@ -82,8 +82,30 @@ Cada `method` es un método oficial de la Bot API. Para agregar capacidades nuev
 | `/saldo`, `/gastos`, `/ayuda` | Responden y repiten la pregunta en curso, sin perder el progreso |
 | Botones viejos | "Usa las opciones del último mensaje" + se repite la pregunta |
 
-Pendiente: fotos y archivos (paso 4.3), corrección de gastos enviados desde el bot (paso 4.4)
-y RUT del proveedor como documento adjunto (4.3).
+## Fotos y archivos (paso 4.3)
+
+```
+Empleado envía foto ─► n8n ─► Python /updates ─► [sendMessage "Recibiendo…", cm:store_file]
+n8n (cm:store_file): getFile ─► descarga ─► POST /api/internal/telegram/files (multipart)
+Python: guarda en documents DE INMEDIATO ─► continúa la conversación ─► acciones ─► n8n ─► Telegram
+```
+
+| Regla | Detalle |
+|---|---|
+| Cuándo se pide | Después de la pregunta de viáticos, con la opción "✍️ Registrar sin foto" |
+| **Regla fundamental** | El archivo se guarda en cuanto llega. Si el empleado cancela o abandona, la foto queda en `documents` sin gasto |
+| Antes de descargar | Más de 10 MB o un tipo distinto de JPG/PNG/WEBP/PDF → se rechaza sin descargar |
+| Después de descargar | Se valida el contenido real (ver `docs/07-archivos.md`); si no sirve, se avisa y se vuelve a pedir |
+| GPS | Telegram borra el EXIF de las "fotos": el bot sugiere enviarla como **archivo**. Si trae GPS y el empleado no compartió su ubicación → `location_source = exif` |
+| Foto desde el menú | Se guarda y se inicia el registro; la pregunta de viáticos se hace igual y ya no se vuelve a pedir la foto |
+| Foto de otro gasto | Se avisa y no se asocia (probable factura duplicada) |
+| Segunda foto en el mismo registro | Se responde "Ya tengo la foto"; se reemplaza con ✏️ Editar → Foto |
+| RUT | Solo para proveedores nuevos, opcional. Se guarda como documento `rut` y se asocia al proveedor al confirmar |
+
+`cm:store_file` es una **acción de transporte**, no un método de Telegram. n8n la reconoce y descarga el
+archivo; la decisión de qué hacer con él la toma Python.
+
+Pendiente: corrección de gastos enviados desde el bot (paso 4.4).
 
 ## Puesta en marcha en desarrollo
 

@@ -26,9 +26,12 @@ from app.bot.menu import CB_BALANCE, CB_EXPENSE, CB_EXPENSES, CB_HELP, MENU, men
 from app.bot.updates import Incoming, Kind, parse_update
 from app.core.config import get_settings
 from app.models import BotSession, DataConsent, Employee, Expense, TelegramEvent
-from app.models.enums import EmployeeStatus, ViaticoStatus
-from app.services import registration, viaticos
+from app.models.enums import DocumentKind, EmployeeStatus, ViaticoStatus
+from app.services import documents, registration, viaticos
+from app.services.audit import Actor
 from app.services.registration import RedeemStatus
+from app.storage import Storage
+from app.storage.inspection import FileTooLargeError, InvalidFileError, UnsupportedFileError
 from app.utils.money import format_cop
 
 logger = logging.getLogger(__name__)
@@ -218,6 +221,8 @@ def _linked(db: Session, session: BotSession, employee: Employee, incoming: Inco
         follow = expense_flow.prompt(db, session, employee, chat) if in_expense else [menu_action(chat, employee)]
         return [send_message(chat, info), *follow]
 
+    if incoming.file is not None and not in_expense:
+        return expense_flow.start_with_file(db, session, employee, incoming)
     if choice == CB_EXPENSE and not in_expense:
         return expense_flow.start(db, session, employee, chat)
     if in_expense:
@@ -265,3 +270,46 @@ def _expenses_text(db: Session, employee: Employee, limit: int = 5) -> str:
             status=msg.EXPENSE_STATUS_LABELS.get(expense.status.value, expense.status.value),
         )
     return text
+
+
+# --- Archivos ya descargados por n8n (acción cm:store_file) ---
+
+
+def handle_file(
+    db: Session,
+    storage: Storage,
+    *,
+    telegram_user_id: int,
+    purpose: str,
+    data: bytes,
+    file_name: str | None,
+    file_unique_id: str | None,
+) -> list[Action]:
+    """Guarda el archivo de inmediato (regla fundamental) y luego continúa la conversación."""
+    employee = db.scalar(select(Employee).where(Employee.telegram_user_id == telegram_user_id))
+    if employee is None:
+        return []  # no hay empresa a la cual asociarlo; el bot ya le pidió registrarse
+    chat = employee.telegram_chat_id or telegram_user_id
+    if employee.status != EmployeeStatus.ACTIVE or employee.deleted_at is not None:
+        return [send_message(chat, msg.EMPLOYEE_INACTIVE)]
+
+    session = db.get(BotSession, telegram_user_id)
+    if session is None:
+        session = BotSession(telegram_user_id=telegram_user_id, employee_id=employee.id, state=MENU, data={})
+        db.add(session)
+
+    kind = DocumentKind.RUT if purpose == expense_flow.RUT_FILE else DocumentKind.INVOICE_PHOTO
+    try:
+        stored = documents.store_document(
+            db, storage, company_id=employee.company_id, data=data, kind=kind,
+            actor=Actor.from_employee(employee), employee_id=employee.id,
+            original_filename=file_name, telegram_file_unique_id=file_unique_id,
+        )
+    except (UnsupportedFileError, InvalidFileError, FileTooLargeError) as exc:
+        reply = [send_message(chat, msg.EXP_FILE_INVALID.format(reason=html.escape(str(exc))))]
+        if expense_flow.is_active(session):
+            reply += expense_flow.prompt(db, session, employee, chat)
+        return reply
+    actions = expense_flow.on_file_stored(db, session, employee, chat, stored.document, purpose)
+    db.flush()
+    return actions

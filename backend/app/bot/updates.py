@@ -30,6 +30,16 @@ class Incoming:
     message_id: int | None = None  # mensaje con los botones pulsados
     latitude: float | None = None
     longitude: float | None = None
+    file: "TelegramFile | None" = None  # foto o documento adjunto
+
+
+@dataclass(frozen=True)
+class TelegramFile:
+    file_id: str  # para descargarlo (solo sirve con este bot)
+    file_unique_id: str  # identificador estable del archivo
+    file_size: int | None
+    mime_type: str | None
+    file_name: str | None
 
 
 def parse_update(raw: dict[str, Any]) -> Incoming | None:
@@ -80,10 +90,27 @@ def parse_update(raw: dict[str, Any]) -> Incoming | None:
             command = stripped[1:].split()[0].split("@")[0].lower() if len(stripped) > 1 else ""
             return Incoming(**base, kind=Kind.COMMAND, text=stripped, command=command)
         return Incoming(**base, kind=Kind.TEXT, text=stripped)
-    if "photo" in message:
-        return Incoming(**base, kind=Kind.PHOTO)
-    if "document" in message:
-        return Incoming(**base, kind=Kind.DOCUMENT)
+    if message.get("photo"):
+        # Telegram manda la misma foto en varios tamaños: el último es el más grande.
+        largest = message["photo"][-1]
+        file = TelegramFile(
+            file_id=largest["file_id"],
+            file_unique_id=largest["file_unique_id"],
+            file_size=largest.get("file_size"),
+            mime_type="image/jpeg",
+            file_name=None,
+        )
+        return Incoming(**base, kind=Kind.PHOTO, file=file)
+    if message.get("document"):
+        doc = message["document"]
+        file = TelegramFile(
+            file_id=doc["file_id"],
+            file_unique_id=doc["file_unique_id"],
+            file_size=doc.get("file_size"),
+            mime_type=doc.get("mime_type"),
+            file_name=doc.get("file_name"),
+        )
+        return Incoming(**base, kind=Kind.DOCUMENT, file=file)
     if "location" in message:
         location = message["location"]
         return Incoming(

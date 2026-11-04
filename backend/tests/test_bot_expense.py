@@ -63,10 +63,11 @@ def category_button(db: Session, company: Company, name: str = "Alimentación") 
 
 def fill_invoice(db: Session, company: Company, *, nit="800.197.268-4", name="Restaurante El Cliente",
                  invoice="FE-1") -> list[dict]:
-    """Recorre los pasos de la factura hasta el resumen (pidiendo el nombre si el NIT es nuevo)."""
-    steps = ["Almuerzo con cliente", "45.000", ("btn", flow.CB_SKIP), ("btn", flow.CB_TODAY), nit]
+    """Recorre los pasos desde la foto hasta el resumen (sin foto; nombre y RUT si el NIT es nuevo)."""
+    steps = [("btn", flow.CB_NO_PHOTO), "Almuerzo con cliente", "45.000", ("btn", flow.CB_SKIP),
+             ("btn", flow.CB_TODAY), nit]
     if name:
-        steps.append(name)
+        steps += [name, ("btn", flow.CB_SKIP)]  # nombre del proveedor nuevo y RUT omitido
     steps += [invoice, category_button(db, company), ("btn", flow.CB_SKIP)]
     return say(db, *steps)
 
@@ -168,7 +169,7 @@ def test_ca3_rejects_invalid_amounts(text: str) -> None:
 
 
 def test_ca3_bad_amount_is_asked_again(db: Session, linked: Employee) -> None:
-    say(db, ("btn", engine.CB_EXPENSE), ("btn", flow.CB_NO), "Taxi al aeropuerto")
+    say(db, ("btn", engine.CB_EXPENSE), ("btn", flow.CB_NO), ("btn", flow.CB_NO_PHOTO), "Taxi al aeropuerto")
 
     actions = say(db, "cuarenta mil")
 
@@ -191,7 +192,7 @@ def test_ca4_date_parsing() -> None:
 
 
 def test_ca4_future_date_is_asked_again(db: Session, linked: Employee) -> None:
-    say(db, ("btn", engine.CB_EXPENSE), ("btn", flow.CB_NO), "Taxi", "20000", ("btn", flow.CB_SKIP))
+    say(db, ("btn", engine.CB_EXPENSE), ("btn", flow.CB_NO), ("btn", flow.CB_NO_PHOTO), "Taxi", "20000", ("btn", flow.CB_SKIP))
 
     actions = say(db, (TODAY + timedelta(days=3)).strftime("%d/%m/%Y"))
 
@@ -203,7 +204,7 @@ def test_ca4_future_date_is_asked_again(db: Session, linked: Employee) -> None:
 
 
 def _to_nit_step(db) -> None:
-    say(db, ("btn", engine.CB_EXPENSE), ("btn", flow.CB_NO), "Taxi", "20000", ("btn", flow.CB_SKIP),
+    say(db, ("btn", engine.CB_EXPENSE), ("btn", flow.CB_NO), ("btn", flow.CB_NO_PHOTO), "Taxi", "20000", ("btn", flow.CB_SKIP),
         ("btn", flow.CB_TODAY))
     assert state(db) == flow.NIT
 
@@ -236,6 +237,8 @@ def test_ca5_new_supplier_asks_name(db: Session, linked: Employee) -> None:
 
     assert state(db) == flow.SUPPLIER_NAME
     say(db, "Bancolombia")
+    assert state(db) == flow.RUT
+    say(db, ("btn", flow.CB_SKIP))
     assert state(db) == flow.INVOICE_NUMBER
 
 
@@ -251,13 +254,13 @@ def test_ca5_nit_can_be_skipped(db: Session, linked: Employee, company: Company)
 
 
 def _to_location_step(db, company) -> None:
-    say(db, ("btn", engine.CB_EXPENSE), ("btn", flow.CB_NO), "Taxi", "20000", ("btn", flow.CB_SKIP),
+    say(db, ("btn", engine.CB_EXPENSE), ("btn", flow.CB_NO), ("btn", flow.CB_NO_PHOTO), "Taxi", "20000", ("btn", flow.CB_SKIP),
         ("btn", flow.CB_TODAY), ("btn", flow.CB_SKIP), ("btn", flow.CB_SKIP), category_button(db, company, "Transporte"))
     assert state(db) == flow.LOCATION
 
 
 def test_ca6_location_prompt_uses_telegram_location_button(db, linked, company) -> None:
-    say(db, ("btn", engine.CB_EXPENSE), ("btn", flow.CB_NO), "Taxi", "20000", ("btn", flow.CB_SKIP),
+    say(db, ("btn", engine.CB_EXPENSE), ("btn", flow.CB_NO), ("btn", flow.CB_NO_PHOTO), "Taxi", "20000", ("btn", flow.CB_SKIP),
         ("btn", flow.CB_TODAY), ("btn", flow.CB_SKIP), ("btn", flow.CB_SKIP))
 
     actions = say(db, category_button(db, company, "Transporte"))
@@ -324,7 +327,7 @@ def test_ca7_edit_nit_to_unknown_asks_name_then_summary(db, linked, company) -> 
 
     say(db, ("btn", flow.CB_EDIT), ("btn", f"{flow.CB_FIELD}nit"), "890903938-8")
     assert state(db) == flow.SUPPLIER_NAME
-    actions = say(db, "Bancolombia")
+    actions = say(db, "Bancolombia", ("btn", flow.CB_SKIP))  # nombre y RUT omitido
 
     assert state(db) == flow.CONFIRM
     assert "Bancolombia (NIT 890903938-8)" in texts(actions)[-1]
@@ -353,7 +356,7 @@ def test_ca8_confirm_submits_expense_audited_as_employee(db, linked, company) ->
 
 
 def test_unit_price_creates_an_item(db, linked, company) -> None:
-    say(db, ("btn", engine.CB_EXPENSE), ("btn", flow.CB_NO), "Galones de gasolina", "60.000", "15.000",
+    say(db, ("btn", engine.CB_EXPENSE), ("btn", flow.CB_NO), ("btn", flow.CB_NO_PHOTO), "Galones de gasolina", "60.000", "15.000",
         ("btn", flow.CB_TODAY), ("btn", flow.CB_SKIP), ("btn", flow.CB_SKIP),
         category_button(db, company, "Combustible"), ("btn", flow.CB_SKIP), ("btn", flow.CB_CONFIRM))
 
@@ -363,7 +366,7 @@ def test_unit_price_creates_an_item(db, linked, company) -> None:
 
 
 def test_unit_price_greater_than_total_is_rejected(db, linked) -> None:
-    say(db, ("btn", engine.CB_EXPENSE), ("btn", flow.CB_NO), "Taxi", "20.000")
+    say(db, ("btn", engine.CB_EXPENSE), ("btn", flow.CB_NO), ("btn", flow.CB_NO_PHOTO), "Taxi", "20.000")
 
     assert texts(say(db, "30.000"))[0] == msg.EXP_UNIT_GT_TOTAL
 
@@ -416,7 +419,7 @@ def test_ca10_cancel_button_in_summary(db, linked, company) -> None:
 
 
 def test_ca10_old_buttons_do_not_break_the_flow(db, linked) -> None:
-    say(db, ("btn", engine.CB_EXPENSE), ("btn", flow.CB_NO))  # ahora pide la descripción
+    say(db, ("btn", engine.CB_EXPENSE), ("btn", flow.CB_NO), ("btn", flow.CB_NO_PHOTO))  # ahora pide la descripción
 
     actions = say(db, ("btn", flow.CB_TODAY))  # botón de otro paso
 
@@ -435,7 +438,7 @@ def test_ca10_button_of_closed_viatico_is_rejected(db, linked, open_viatico, adm
 
 
 def test_queries_do_not_interrupt_the_flow(db, linked) -> None:
-    say(db, ("btn", engine.CB_EXPENSE), ("btn", flow.CB_NO))
+    say(db, ("btn", engine.CB_EXPENSE), ("btn", flow.CB_NO), ("btn", flow.CB_NO_PHOTO))
 
     actions = say(db, "/saldo")
 
@@ -447,7 +450,7 @@ def test_queries_do_not_interrupt_the_flow(db, linked) -> None:
 
 
 def test_ca11_progress_survives_restart(db, linked, company) -> None:
-    say(db, ("btn", engine.CB_EXPENSE), ("btn", flow.CB_NO), "Almuerzo", "45.000")
+    say(db, ("btn", engine.CB_EXPENSE), ("btn", flow.CB_NO), ("btn", flow.CB_NO_PHOTO), "Almuerzo", "45.000")
     db.expire_all()  # simula que la API se reinició: todo se vuelve a leer de la base
 
     say(db, ("btn", flow.CB_SKIP), ("btn", flow.CB_TODAY), ("btn", flow.CB_SKIP), ("btn", flow.CB_SKIP),
