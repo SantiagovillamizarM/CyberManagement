@@ -3,7 +3,8 @@
 import hmac
 from collections.abc import Callable
 
-from fastapi import Depends, Header, HTTPException, Request, status
+from fastapi import Depends, Header, HTTPException, Request, Security, status
+from fastapi.security import APIKeyCookie, APIKeyHeader
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -26,8 +27,23 @@ EDITORS = (AdminRole.SUPERADMIN, AdminRole.ADMIN)
 # --- Panel web (administradores) ---
 
 
-def get_current_session(request: Request, db: Session = Depends(get_db)) -> AdminSession:
-    token = request.cookies.get(SESSION_COOKIE)
+# Declarar los mecanismos como "esquemas de seguridad" hace que la documentación
+# interactiva (/api/docs) muestre el botón "Authorize" para pegar el token CSRF.
+# auto_error=False: la validación real (y sus mensajes) se hace abajo.
+_session_cookie = APIKeyCookie(name=SESSION_COOKIE, auto_error=False, description="Se crea al iniciar sesión")
+_csrf_header = APIKeyHeader(
+    name=CSRF_HEADER,
+    auto_error=False,
+    description="Valor de `csrf_token` que devuelve POST /api/v1/auth/login",
+)
+
+
+def get_current_session(
+    request: Request,
+    token: str | None = Security(_session_cookie),
+    csrf_token: str | None = Security(_csrf_header),
+    db: Session = Depends(get_db),
+) -> AdminSession:
     session = auth.get_active_session(db, token) if token else None
     if session is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sesión inválida o expirada")
@@ -35,7 +51,7 @@ def get_current_session(request: Request, db: Session = Depends(get_db)) -> Admi
     # Toda acción que modifica datos exige el token CSRF en una cabecera. Otra web
     # puede hacer que el navegador envíe la cookie, pero no puede leer este token.
     if request.method not in SAFE_METHODS:
-        sent = request.headers.get(CSRF_HEADER, "")
+        sent = csrf_token or ""
         if not sent or not tokens_match(sent, session.csrf_token_hash):
             raise HTTPException(status.HTTP_403_FORBIDDEN, "Token CSRF inválido")
 

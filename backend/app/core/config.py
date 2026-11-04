@@ -47,6 +47,14 @@ class Settings(BaseSettings):
     # --- Inteligencia artificial ---
     gemini_api_key: SecretStr
 
+    # --- Telegram ---
+    # Telegram lo envía en cada webhook (cabecera X-Telegram-Bot-Api-Secret-Token).
+    # Prueba que el mensaje viene de Telegram y no de cualquiera que conozca la URL.
+    # Ojo: el TOKEN del bot NO está aquí; solo lo usa n8n.
+    telegram_webhook_secret: SecretStr
+    # Versión de la política de tratamiento de datos que acepta el empleado (Ley 1581).
+    data_policy_version: str = "2026-11-v1"
+
     # --- Almacenamiento de archivos ---
     storage_dir: Path = PROJECT_ROOT / "storage"
     max_upload_mb: int = 10
@@ -65,7 +73,9 @@ class Settings(BaseSettings):
     registration_max_failures: int = 5  # intentos fallidos permitidos...
     registration_window_minutes: int = 15  # ...en esta ventana de tiempo
 
-    @field_validator("secret_key", "internal_api_token", "registration_code_pepper")
+    @field_validator(
+        "secret_key", "internal_api_token", "registration_code_pepper", "telegram_webhook_secret"
+    )
     @classmethod
     def _secret_must_be_long(cls, value: SecretStr) -> SecretStr:
         if len(value.get_secret_value()) < MIN_SECRET_LENGTH:

@@ -60,6 +60,9 @@ factura válida.
   - [x] 3.4 Viáticos, gastos y auditoría (ver [06-viaticos-y-gastos.md](06-viaticos-y-gastos.md))
   - [x] 3.5 Archivos (ver [07-archivos.md](07-archivos.md))
 - [ ] Fase 4 — Telegram
+  - [ ] 4.1 Conexión, motor de conversación y vinculación (código listo; falta la prueba con Telegram real)
+  - [ ] 4.2 Registro de gastos conversacional
+  - [ ] 4.3 Fotos y archivos desde Telegram
 - [ ] Fase 5 — Inteligencia artificial
 - [ ] Fase 6 — n8n
 - [ ] Fase 7 — Panel web

@@ -11,6 +11,7 @@ VALID = {
     "postgres_user": "user",
     "postgres_password": "p@ss/word",
     "gemini_api_key": "key",
+    "telegram_webhook_secret": "w" * 32,
 }
 
 

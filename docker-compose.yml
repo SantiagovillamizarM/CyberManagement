@@ -45,6 +45,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET}
       STORAGE_DIR: /data/storage
     # --reload: reinicia automáticamente al guardar cambios en el código.
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
@@ -72,15 +73,33 @@ services:
       TZ: America/Bogota
       N8N_DIAGNOSTICS_ENABLED: "false"
       N8N_PERSONALIZATION_ENABLED: "false"
-      # URL pública para webhooks (túnel HTTPS). Se configura en la Fase 4.
-      WEBHOOK_URL: ${N8N_WEBHOOK_URL}
+      # URL pública del túnel HTTPS (la actualiza infra/dev-tunnel.ps1).
+      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL}
+      # Los workflows leen estas variables con {{ $env.NOMBRE }}. n8n 2.x bloquea ese
+      # acceso por defecto; se habilita porque solo el administrador crea workflows.
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN}
+      CM_API_URL: http://api:8000
     volumes:
       - n8n_data:/home/node/.n8n
+      - ./n8n/workflows:/workflows:ro
     ports:
       - "127.0.0.1:5678:5678"
     depends_on:
       postgres:
         condition: service_healthy
+
+  # Túnel HTTPS gratuito de Cloudflare para que Telegram alcance a n8n en desarrollo.
+  # No arranca con "docker compose up"; se usa con:  .\infra\dev-tunnel.ps1
+  # La URL (https://xxxx.trycloudflare.com) cambia cada vez que se reinicia.
+  tunnel:
+    image: cloudflare/cloudflared:2026.10.7
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "--url", "http://n8n:5678"]
+    depends_on:
+      - n8n
 
 volumes:
   postgres_data:

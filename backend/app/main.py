@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request, Response
 from app.api import health
 from app.api.internal import documents as internal_documents
 from app.api.internal import registration as internal_registration
+from app.api.internal import telegram as internal_telegram
 from app.api.v1 import auth, catalog, documents, employees, expenses, viaticos
 from app.core.config import get_settings
 from app.core.logging import setup_logging
@@ -44,3 +45,4 @@ app.include_router(documents.router, prefix="/api/v1")
 # Endpoints internos: solo n8n (token interno). En producción, Caddy NO los expone.
 app.include_router(internal_registration.router, prefix="/api/internal")
 app.include_router(internal_documents.router, prefix="/api/internal")
+app.include_router(internal_telegram.router, prefix="/api/internal")
