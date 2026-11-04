@@ -49,6 +49,9 @@ class Settings(BaseSettings):
 
     # --- Almacenamiento de archivos ---
     storage_dir: Path = PROJECT_ROOT / "storage"
+    max_upload_mb: int = 10
+    # Límite de píxeles al abrir una imagen: protege contra "bombas de descompresión".
+    max_image_pixels: int = 50_000_000
 
     # --- Sesiones del panel ---
     session_absolute_hours: int = 8  # duración máxima de una sesión

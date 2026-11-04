@@ -53,12 +53,12 @@ factura válida.
 
 - [x] Fase 1 — Análisis y arquitectura
 - [x] Fase 2 — Configuración inicial (verificada el 2026-11-03: PostgreSQL, API, n8n, Gemini y Telegram)
-- [ ] Fase 3 — Backend
+- [x] Fase 3 — Backend (completada el 2026-11-03)
   - [x] 3.1 Modelos y migraciones (ver [02-base-de-datos.md](02-base-de-datos.md))
   - [x] 3.2 Seguridad y login del administrador (ver [04-seguridad.md](04-seguridad.md))
   - [x] 3.3 Empleados y códigos de registro (ver [05-empleados-y-codigos.md](05-empleados-y-codigos.md))
   - [x] 3.4 Viáticos, gastos y auditoría (ver [06-viaticos-y-gastos.md](06-viaticos-y-gastos.md))
-  - [ ] 3.5 Archivos
+  - [x] 3.5 Archivos (ver [07-archivos.md](07-archivos.md))
 - [ ] Fase 4 — Telegram
 - [ ] Fase 5 — Inteligencia artificial
 - [ ] Fase 6 — n8n
