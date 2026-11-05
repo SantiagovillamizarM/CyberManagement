@@ -10,7 +10,7 @@ const NAV = [
   { href: "/", label: "Dashboard", icon: "dashboard", key: "dashboard" },
   { href: "/empleados.html", label: "Empleados", icon: "users", key: "empleados" },
   { section: "Finanzas" },
-  { href: "/gastos.html", label: "Facturas", icon: "receipt", key: "gastos", soon: true },
+  { href: "/gastos.html", label: "Facturas", icon: "receipt", key: "gastos" },
   { href: "/viaticos.html", label: "Viáticos", icon: "wallet", key: "viaticos", soon: true },
   { href: "/informes.html", label: "Informes", icon: "report", key: "informes", soon: true },
 ];

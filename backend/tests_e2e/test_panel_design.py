@@ -7,7 +7,7 @@ from playwright.sync_api import Browser, Page, expect
 from sqlalchemy import text
 
 from app.db.session import engine
-from tests_e2e.conftest import BASE_URL, Credentials, login
+from tests_e2e.conftest import BASE_URL, Credentials, login, wait_for_entrance
 
 
 def test_scan_scene_ends_verified(page: Page) -> None:
@@ -113,6 +113,7 @@ def test_dashboard_charts_render_and_read_values(page: Page, credentials: Creden
             expect(page.locator(".seg-block").first).to_be_visible()
             expect(page.locator(".rank-row", has_text=category["name"])).to_be_visible()
 
+            wait_for_entrance(page)  # medir con el contenido quieto
             box = page.locator(".area-plot").bounding_box()
             page.mouse.move(box["x"] + box["width"] - 70, box["y"] + box["height"] / 2)  # el día de hoy
             expect(page.locator(".chart-tip.is-visible strong")).to_contain_text("$")

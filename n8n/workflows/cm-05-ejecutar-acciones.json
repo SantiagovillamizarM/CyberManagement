@@ -1,0 +1,90 @@
+{
+  "id": "cm05EjecutarAcciones",
+  "name": "CM-05 · Ejecutar acciones",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "cm99Errores"
+  },
+  "nodes": [
+    {
+      "id": "0cd85434-d37e-57b5-8044-1f216b83a025",
+      "name": "Recibir acciones",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "notes": "Cada ítem es una acción de Python: {method, payload}. Las usan CM-02 y CM-03."
+    },
+    {
+      "id": "74e7b5a4-0d9f-54a4-8d08-f6c4bdfc32c6",
+      "name": "Telegram: ejecutar acción",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/{{ $json.method }}",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}"
+      },
+      "onError": "continueRegularOutput",
+      "notes": "Ejecuta la acción tal cual (sendMessage, answerCallbackQuery...). No interpreta nada."
+    },
+    {
+      "id": "ad6146de-3d5c-5eb9-831d-67824edc545b",
+      "name": "Revisar respuesta de Telegram",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Telegram responde {ok:false, error_code, description} cuando algo falla.\n// Algunos errores son inofensivos y no merecen una alerta.\nconst HARMLESS = [\n  'message is not modified',        // se quitaron botones que ya no estaban\n  'query is too old',               // el empleado tocó un botón hace mucho\n  'message to edit not found',\n  \"message can't be edited\",\n  'bot was blocked by the user',    // el empleado bloqueó el bot: no hay a quién responder\n];\nconst actions = $('Recibir acciones').all();\nconst problems = [];\n$input.all().forEach((item, i) => {\n  const r = item.json;\n  if (r.ok === true) return;\n  const text = String(r.description || r.error?.message || 'sin respuesta de Telegram');\n  if (HARMLESS.some(h => text.toLowerCase().includes(h))) return;\n  problems.push(`${actions[i]?.json.method}: ${r.error_code || ''} ${text}`.trim());\n});\nif (problems.length) {\n  throw new Error('Telegram rechazó acciones: ' + problems.join(' | '));  // → CM-99\n}\nreturn $input.all();"
+      }
+    }
+  ],
+  "connections": {
+    "Recibir acciones": {
+      "main": [
+        [
+          {
+            "node": "Telegram: ejecutar acción",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram: ejecutar acción": {
+      "main": [
+        [
+          {
+            "node": "Revisar respuesta de Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {}
+}

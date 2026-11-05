@@ -113,9 +113,21 @@ def test_ca13_inconsistencies_warn_but_do_not_block(client, csrf, employee) -> N
 
     assert set(body["warnings"]) == {
         "El subtotal más los impuestos no coincide con el total",
-        "La suma de los productos no coincide con el subtotal",
+        "La suma de los productos no coincide con el subtotal ni con el total",
         "No se registró el NIT del establecimiento",
     }
+
+
+def test_items_with_tax_included_prices_do_not_warn(client, csrf, employee) -> None:
+    """En Colombia es normal que los productos ya traigan el IVA: suman el total, no el subtotal."""
+    body = create(
+        client, csrf, employee,
+        total="68000.00", subtotal="62963.00", tax_total="5037.00",
+        items=[{"description": "Bandeja paisa", "quantity": "2", "unit_price": "28000"},
+               {"description": "Limonada", "quantity": "2", "unit_price": "6000"}],
+    )
+
+    assert body["warnings"] == []
 
 
 def test_manual_location_is_recorded(client: TestClient, csrf: dict, employee: Employee) -> None:

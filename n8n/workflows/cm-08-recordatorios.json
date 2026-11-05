@@ -1,0 +1,96 @@
+{
+  "id": "cm08Recordatorios",
+  "name": "CM-08 · Recordatorios",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "cm99Errores",
+    "saveManualExecutions": true
+  },
+  "nodes": [
+    {
+      "id": "cd3f0f47-3831-5fb3-97cf-b23547e53c4e",
+      "name": "Todos los días 8:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "notes": "Hora de Colombia (GENERIC_TIMEZONE=America/Bogota)."
+    },
+    {
+      "id": "37399ea6-4f7a-5d5c-bfd4-ad0b66f4e885",
+      "name": "Ejecutar ahora",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        180
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "26b09d8b-1ec9-5b90-9559-65e15b2e74f4",
+      "name": "Python: crear recordatorios",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        80
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CM_API_URL }}/api/internal/reminders/run",
+        "options": {
+          "timeout": 60000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-Token",
+              "value": "={{ $env.INTERNAL_API_TOKEN }}"
+            }
+          ]
+        }
+      },
+      "notes": "Python decide a quién recordar (una vez al día como máximo). Los avisos salen por CM-06."
+    }
+  ],
+  "connections": {
+    "Todos los días 8:00": {
+      "main": [
+        [
+          {
+            "node": "Python: crear recordatorios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ejecutar ahora": {
+      "main": [
+        [
+          {
+            "node": "Python: crear recordatorios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {}
+}

@@ -14,7 +14,7 @@ Código: `frontend/`. HTML, CSS y JavaScript (módulos ES), sin frameworks ni pr
 
 ```
 frontend/
-├── index.html · login.html · empleados.html     (solo cargan su módulo JS)
+├── index.html · login.html · empleados.html · gastos.html   (solo cargan su módulo JS)
 └── assets/
     ├── css/   tokens.css (colores, fuente y medidas), base.css, components.css, layout.css
     ├── js/    dom.js (construcción segura), api.js (cliente), ui.js (modales, avisos, formatos),
@@ -112,6 +112,27 @@ se enciende y aparece el sello **Verificado**. Dura unos 3 segundos.
 Responsive: por debajo de 960 px el login apila la escena sobre el formulario; por debajo de 900 px el menú se
 convierte en panel deslizable; por debajo de 760 px las tablas se muestran como tarjetas.
 
+## Facturas y gastos (paso 7.2) — `gastos.html`, `pages/gastos.js`, `css/expenses.css`
+
+| Parte | Qué hace |
+|---|---|
+| Filtros | Por estado (*Todos*, *Por revisar* = enviado + en revisión, *Aprobados*, *Rechazados*, *Por completar*, *Cerrados*), búsqueda libre (descripción, establecimiento, NIT o n.º de factura), empleado, tipo de gasto y rango de fechas de la factura. 50 por página, con "Cargar más" |
+| Detalle | La **foto a la izquierda** (clic: tamaño completo en otra pestaña; un PDF se abre aparte) y los **datos a la derecha**: establecimiento, factura, fechas de expedición y de recepción, pago, ubicación (enlace al mapa con su origen), productos y advertencias de coherencia |
+| Lectura con IA | Tabla **"Leído por IA" frente a "Registrado"**: lo que el empleado o el administrador corrigió aparece marcado como *Corregido*. Muestra la confianza, y el botón **Volver a leer** llama a Gemini de nuevo |
+| Historial | Quién hizo qué y cuándo (administrador, empleado o sistema), con valor anterior → nuevo y motivo de rechazo |
+| Acciones | Según el estado: *Empezar revisión*, **Aprobar**, **Rechazar** (motivo obligatorio), *Cerrar*, *Enviar a revisión*, *Corregir* (con bloqueo optimista: si otra persona lo cambió, se avisa) y *Eliminar*. El auditor solo ve |
+| Avisos | Al aprobar o rechazar, el empleado recibe el aviso por Telegram (bandeja de salida → CM-06) |
+| Fotos sin registrar | Fotos que llegaron por el bot pero nunca quedaron en un gasto (por ejemplo, el empleado no terminó). Las que no eran factura no se muestran |
+| Enlaces | `gastos.html?id=<uuid>` abre el detalle directo, y `?status=review` abre la lista en "Por revisar". El dashboard usa ambos |
+
+Backend agregado para esta pantalla:
+
+- `GET /api/v1/expenses?search=…&status=submitted&status=in_review`: búsqueda libre y varios estados a la vez.
+- `GET /api/v1/expenses/{id}/history`: el historial, con el nombre de quién hizo cada cambio.
+- `GET /api/v1/documents?unattached=true`: fotos sin gasto.
+- La advertencia "la suma de los productos no coincide" ahora acepta que sumen el **subtotal o el total**, porque en
+  Colombia los precios suelen incluir el IVA.
+
 ## Seguridad
 
 | Medida | Dónde |
@@ -134,7 +155,9 @@ convierte en panel deslizable; por debajo de 760 px las tablas se muestran como 
   cd backend
   .venv\Scripts\python.exe -m pytest tests_e2e -v
   ```
-  Usan la base de desarrollo y borran todo lo que crean (empleados `E2E-*`).
+  Usan la base de desarrollo y borran todo lo que crean (empleados `E2E-*`, sus gastos, fotos y archivos).
+  `wait_for_entrance(page)` espera a que termine la animación de entrada antes de medir posiciones; esa era la causa
+  de la prueba intermitente del dashboard.
 
 ## Secciones
 
@@ -143,7 +166,7 @@ convierte en panel deslizable; por debajo de 760 px las tablas se muestran como 
 | Login | ✅ 7.1 |
 | Dashboard (indicadores básicos y gastos recientes) | ✅ 7.1 (los gráficos llegan en el 7.4) |
 | Empleados: crear, editar, activar o desactivar, eliminar, generar o revocar código, desvincular Telegram | ✅ 7.1 |
-| Facturas y gastos | 7.2 |
+| Facturas y gastos: revisar con la foto, comparar con la IA, aprobar, rechazar, corregir e historial | ✅ 7.2 |
 | Viáticos | 7.3 |
 | Dashboard con gráficos | 7.4 |
 | Informes PDF | Fase 8 |

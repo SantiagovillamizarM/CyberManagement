@@ -86,3 +86,15 @@ def cleanup(credentials: Credentials) -> Iterator[None]:
     purge()
     yield
     purge()
+
+
+def wait_for_entrance(page: Page) -> None:
+    """Espera a que terminen las animaciones de entrada (las finitas; el fondo animado es infinito).
+
+    Mientras el contenido "sube" al entrar, su posición cambia: medir y mover el mouse en ese
+    momento hace que el puntero caiga en otro lugar (era la prueba intermitente del dashboard).
+    """
+    page.wait_for_function("""() => document.getAnimations()
+        .filter(a => a.effect && a.effect.getTiming().iterations !== Infinity)
+        .every(a => a.playState !== 'running')""")
+

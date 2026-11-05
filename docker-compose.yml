@@ -81,6 +81,10 @@ services:
       # acceso por defecto; se habilita porque solo el administrador crea workflows.
       N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      # CM-02 descarta lo que no traiga este secreto (Python también lo verifica).
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET}
+      # CM-99 envía aquí las alertas de fallas. Vacío = sin alertas por Telegram.
+      ADMIN_TELEGRAM_CHAT_ID: ${ADMIN_TELEGRAM_CHAT_ID:-}
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN}
       CM_API_URL: http://api:8000
     volumes:

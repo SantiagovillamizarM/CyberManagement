@@ -329,17 +329,28 @@ def test_files_endpoint_stores_and_returns_actions(client: TestClient, api_stora
 # --- CA-10: el workflow de n8n está bien conectado y solo transporta ---
 
 
-def test_ca10_n8n_workflow_is_consistent() -> None:
-    workflow = json.loads(Path(PROJECT_ROOT, "n8n/workflows/cm-02-entrada-telegram.json").read_text("utf-8"))
-    names = {node["name"] for node in workflow["nodes"]}
+def test_ca10_n8n_workflows_are_consistent() -> None:
+    """Los JSON de n8n/workflows: conexiones válidas, sub-workflows existentes y rutas correctas."""
+    workflows = [json.loads(f.read_text("utf-8")) for f in Path(PROJECT_ROOT, "n8n/workflows").glob("*.json")]
+    ids = {w["id"] for w in workflows}
+    assert {"cm02EntradaTelegram", "cm03ArchivosIA", "cm05EjecutarAcciones", "cm06Notificaciones",
+            "cm08Recordatorios", "cm99Errores"} <= ids
 
-    for source, outputs in workflow["connections"].items():
-        assert source in names
-        for branch in outputs["main"]:
-            for link in branch:
-                assert link["node"] in names, f"{source} apunta a un nodo inexistente: {link['node']}"
+    for workflow in workflows:
+        names = {node["name"] for node in workflow["nodes"]}
+        for source, outputs in workflow["connections"].items():
+            assert source in names, f"{workflow['name']}: {source}"
+            for branch in outputs["main"]:
+                for link in branch:
+                    assert link["node"] in names, f"{workflow['name']}: {source} → {link['node']} no existe"
+        for node in workflow["nodes"]:
+            if node["type"] == "n8n-nodes-base.executeWorkflow":
+                assert node["parameters"]["workflowId"]["value"] in ids, f"{node['name']} llama a un workflow inexistente"
+        error_workflow = workflow["settings"].get("errorWorkflow")
+        assert error_workflow in (None, "cm99Errores")
 
-    urls = " ".join(str(n["parameters"].get("url", "")) for n in workflow["nodes"])
-    assert "/api/internal/telegram/updates" in urls
-    assert "/api/internal/telegram/files" in urls
-    assert "/getFile" in urls and "api.telegram.org/file/bot" in urls
+    urls = " ".join(str(n["parameters"].get("url", "")) for w in workflows for n in w["nodes"])
+    for path in ("/api/internal/telegram/updates", "/api/internal/telegram/files", "/getFile",
+                 "api.telegram.org/file/bot", "/api/internal/notifications/claim", "/api/internal/reminders/run"):
+        assert path in urls, path
+    assert "TELEGRAM_BOT_TOKEN" not in json.dumps([w["settings"] for w in workflows])  # nunca el token en claro

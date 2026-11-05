@@ -38,6 +38,7 @@ def list_documents(
     expense_id: uuid.UUID | None = None,
     processing_status: ProcessingStatus | None = None,
     kind: DocumentKind | None = None,
+    unattached: bool = Query(default=False, description="Solo los que no están asociados a ningún gasto"),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     admin: AdminUser = Depends(require_roles(*READERS)),
@@ -45,7 +46,7 @@ def list_documents(
 ) -> DocumentList:
     items, total = service.list_documents(
         db, admin.company_id, employee_id=employee_id, expense_id=expense_id,
-        processing_status=processing_status, kind=kind, limit=limit, offset=offset,
+        processing_status=processing_status, kind=kind, unattached=unattached, limit=limit, offset=offset,
     )
     return DocumentList(items=[DocumentOut.from_model(d) for d in items], total=total)
 

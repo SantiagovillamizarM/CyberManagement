@@ -3,19 +3,9 @@ import { areaChart, meter, rankedBars, segmentedBar } from "../charts.js";
 import { h, icon, mount } from "../dom.js";
 import { renderShell, startPage } from "../layout.js";
 import { countUp } from "../motion.js";
-import { badge, formatCOP, formatDate } from "../ui.js";
+import { badge, EXPENSE_STATUS, formatCOP, formatDate } from "../ui.js";
 
-// Cada estado tiene SIEMPRE el mismo color (paleta validada con el skill dataviz:
-// orden fijo, colores parecidos nunca adyacentes).
-const STATUS = {
-  approved: { label: "Aprobado", tone: "approved", badge: "success" },
-  submitted: { label: "Enviado", tone: "submitted", badge: "info" },
-  pending_completion: { label: "Pendiente de completar", tone: "pending", badge: "warning" },
-  in_review: { label: "En revisión", tone: "review", badge: "violet" },
-  rejected: { label: "Rechazado", tone: "rejected", badge: "danger" },
-  draft: { label: "Borrador", tone: "", badge: "" },
-  closed: { label: "Cerrado", tone: "approved", badge: "" },
-};
+const STATUS = EXPENSE_STATUS;
 const SEGMENT_ORDER = ["approved", "submitted", "pending_completion", "in_review", "rejected"];
 const COUNTED = new Set(["submitted", "in_review", "approved", "closed"]); // lo que cuenta como gastado
 
@@ -147,7 +137,7 @@ startPage(async () => {
     const status = STATUS[e.status] || { label: e.status, badge: "" };
     return h("tr", {},
       h("td", { "data-label": "Empleado" }, h("div", { class: "cell-main" }, `${e.employee.first_name} ${e.employee.last_name}`)),
-      h("td", { "data-label": "Descripción" }, e.description || "—"),
+      h("td", { "data-label": "Descripción" }, h("a", { class: "row-link", href: `/gastos.html?id=${e.id}` }, e.description || "Ver factura")),
       h("td", { "data-label": "Fecha" }, formatDate(e.issue_date || e.received_at)),
       h("td", { "data-label": "Total", class: "num" }, formatCOP(e.total)),
       h("td", { "data-label": "Estado" }, badge(status.label, status.badge)));
@@ -184,7 +174,8 @@ startPage(async () => {
     h("div", { class: "dash-grid is-wide-right" },
       card("Viáticos abiertos", openViaticos.length ? "Los que van más gastados, primero" : null,
         viaticoRows.length ? h("ul", { class: "vt-list" }, viaticoRows) : emptyNote("No hay viáticos abiertos.")),
-      card("Gastos recientes", null,
+      card("Gastos recientes", h("a", { class: "row-link", href: pending ? "/gastos.html?status=review" : "/gastos.html" },
+        pending ? "Revisar los pendientes →" : "Ver todas las facturas →"),
         recent.length
           ? h("div", { class: "table-wrap" }, h("table", { class: "table" },
               h("thead", {}, h("tr", {},

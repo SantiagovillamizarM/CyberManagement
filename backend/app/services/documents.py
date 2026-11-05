@@ -134,6 +134,7 @@ def list_documents(
     expense_id: uuid.UUID | None = None,
     processing_status: ProcessingStatus | None = None,
     kind: DocumentKind | None = None,
+    unattached: bool = False,
     limit: int = 50,
     offset: int = 0,
 ) -> tuple[list[Document], int]:
@@ -146,6 +147,8 @@ def list_documents(
         query = query.where(Document.processing_status == processing_status)
     if kind:
         query = query.where(Document.kind == kind)
+    if unattached:  # fotos que nunca quedaron en un gasto (p. ej. el empleado no terminó el registro)
+        query = query.where(Document.expense_id.is_(None))
     total = db.scalar(select(func.count()).select_from(query.subquery()))
     items = db.scalars(query.order_by(Document.received_at.desc()).limit(limit).offset(offset))
     return list(items), total

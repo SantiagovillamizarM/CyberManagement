@@ -30,6 +30,37 @@ export function initials(name = "") {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("") || "A";
 }
 
+/**
+ * Estados de un gasto. Cada estado tiene SIEMPRE el mismo color en todo el panel
+ * (paleta validada con el skill dataviz: orden fijo, colores parecidos nunca adyacentes).
+ */
+export const EXPENSE_STATUS = {
+  approved: { label: "Aprobado", tone: "approved", badge: "success" },
+  submitted: { label: "Enviado", tone: "submitted", badge: "info" },
+  pending_completion: { label: "Pendiente de completar", tone: "pending", badge: "warning" },
+  in_review: { label: "En revisión", tone: "review", badge: "violet" },
+  rejected: { label: "Rechazado", tone: "rejected", badge: "danger" },
+  draft: { label: "Borrador", tone: "", badge: "" },
+  closed: { label: "Cerrado", tone: "approved", badge: "" },
+};
+
+export function statusBadge(status) {
+  const info = EXPENSE_STATUS[status] || { label: status, badge: "" };
+  return badge(info.label, info.badge);
+}
+
+/**
+ * Monto escrito por una persona → texto que entiende la API ("45.000" → "45000", "1.234,5" → "1234.5").
+ * Devuelve null si está vacío y NaN si no es un número.
+ */
+export function parseMoney(text) {
+  let value = String(text ?? "").replace(/[$\s]/g, "");
+  if (!value) return null;
+  if (value.includes(",")) value = value.replace(/\./g, "").replace(",", ".");
+  else if (/^\d{1,3}(\.\d{3})+$/.test(value)) value = value.replace(/\./g, "");
+  return /^\d+(\.\d{1,2})?$/.test(value) ? value : NaN;
+}
+
 export function badge(text, tone = "") {
   return h("span", { class: `badge ${tone ? `badge-${tone}` : ""}` }, text);
 }
@@ -60,13 +91,13 @@ function leaveThenRemove(el, className = "is-leaving") {
  * Abre una ventana modal. Devuelve { close, body, footer }.
  * Se cierra con Escape, con la X o haciendo clic fuera.
  */
-export function openModal({ title, content = [], actions = [], onClose } = {}) {
+export function openModal({ title, content = [], actions = [], onClose, size = "" } = {}) {
   const previousFocus = document.activeElement;
   const titleId = `modal-title-${Math.random().toString(36).slice(2)}`;
   const body = h("div", { class: "modal-body" }, content);
   const footer = h("div", { class: "modal-footer" }, actions);
   const closeBtn = h("button", { class: "icon-btn", type: "button", "aria-label": "Cerrar" }, icon("x"));
-  const modal = h("div", { class: "modal", role: "dialog", "aria-modal": "true", "aria-labelledby": titleId },
+  const modal = h("div", { class: `modal ${size ? `modal-${size}` : ""}`.trim(), role: "dialog", "aria-modal": "true", "aria-labelledby": titleId },
     h("div", { class: "modal-header" }, h("h2", { id: titleId }, title), closeBtn),
     body,
     actions.length ? footer : null,

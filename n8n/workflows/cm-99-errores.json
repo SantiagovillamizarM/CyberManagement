@@ -1,0 +1,86 @@
+{
+  "id": "cm99Errores",
+  "name": "CM-99 · Errores",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "nodes": [
+    {
+      "id": "46e5aa21-9ef9-5838-bdb0-379e74af5ecb",
+      "name": "Cuando un workflow falla",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "21bb9829-fb49-5b72-8f9e-bd2c80df616b",
+      "name": "Preparar alerta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const chat = $env.ADMIN_TELEGRAM_CHAT_ID;\nif (!chat) return [];  // sin chat de administrador configurado: solo queda en el historial de n8n\nconst e = $input.first().json;\n// Nunca reenviar el token del bot: algunas fallas incluyen la URL completa de Telegram.\nconst clean = s => String(s ?? '').replace(/bot\\d+:[A-Za-z0-9_-]+/g, 'bot***').slice(0, 600);\nconst esc = s => clean(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst text = [\n  '🚨 <b>Falla en CyberManagement</b>',\n  `<b>Workflow:</b> ${esc(e.workflow?.name)}`,\n  `<b>Paso:</b> ${esc(e.execution?.lastNodeExecuted)}`,\n  `<b>Error:</b> ${esc(e.execution?.error?.message)}`,\n  `<b>Ejecución:</b> ${esc(e.execution?.id)}`,\n].join('\\n');\nreturn [{ json: { chat_id: chat, text, parse_mode: 'HTML' } }];"
+      }
+    },
+    {
+      "id": "607d06b8-7954-5308-a602-5ac6df0d869c",
+      "name": "Telegram: alertar al administrador",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}"
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Cuando un workflow falla": {
+      "main": [
+        [
+          {
+            "node": "Preparar alerta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar alerta": {
+      "main": [
+        [
+          {
+            "node": "Telegram: alertar al administrador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {}
+}

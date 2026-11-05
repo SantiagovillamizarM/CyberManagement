@@ -3,205 +3,333 @@
   "name": "CM-02 · Entrada Telegram",
   "active": false,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "errorWorkflow": "cm99Errores"
   },
   "nodes": [
     {
-      "id": "5f0c2d6e-7a1b-4c3d-9e8f-0a1b2c3d4e01",
+      "id": "0b7cd3d0-02f5-53d4-a48c-122d79fabfc7",
       "name": "Telegram (webhook)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [0, 0],
-      "webhookId": "9b1e6f3a-2c4d-4e5f-8a7b-6c5d4e3f2a10",
+      "position": [
+        0,
+        0
+      ],
       "parameters": {
         "httpMethod": "POST",
         "path": "telegram",
         "responseMode": "onReceived",
         "options": {}
       },
+      "webhookId": "9b1e6f3a-2c4d-4e5f-8a7b-6c5d4e3f2a10",
       "notes": "Telegram llama aquí. Se responde 200 de inmediato para que Telegram no reintente."
     },
     {
-      "id": "5f0c2d6e-7a1b-4c3d-9e8f-0a1b2c3d4e02",
-      "name": "Python: procesar update",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [260, 0],
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $env.CM_API_URL }}/api/internal/telegram/updates",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            { "name": "X-Internal-Token", "value": "={{ $env.INTERNAL_API_TOKEN }}" },
-            { "name": "X-Telegram-Secret", "value": "={{ $json.headers['x-telegram-bot-api-secret-token'] || '' }}" }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.body) }}",
-        "options": {
-          "timeout": 30000
-        }
-      },
-      "notes": "Python decide TODO (reglas, permisos, estado de la conversación) y devuelve una lista de acciones."
-    },
-    {
-      "id": "5f0c2d6e-7a1b-4c3d-9e8f-0a1b2c3d4e03",
-      "name": "Separar acciones",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [520, 0],
-      "parameters": {
-        "jsCode": "// Una acción = un ítem. Sin acciones, el flujo termina aquí.\nreturn $input.all().flatMap(item => (item.json.actions || []).map(action => ({ json: action })));"
-      }
-    },
-    {
-      "id": "5f0c2d6e-7a1b-4c3d-9e8f-0a1b2c3d4e05",
-      "name": "¿Es mensaje de Telegram?",
+      "id": "b576598d-8a63-5ef3-9f6c-d8e72d77619c",
+      "name": "¿Viene de Telegram?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [780, 0],
+      "position": [
+        240,
+        0
+      ],
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
             {
-              "id": "b7c1d2e3-f4a5-4b6c-8d7e-9f0a1b2c3d4e",
-              "leftValue": "={{ $json.method }}",
-              "rightValue": "cm:store_file",
-              "operator": { "type": "string", "operation": "notEquals" }
+              "id": "c1896d13-9a35-5305-8c39-ce13cb0cb393",
+              "leftValue": "={{ $json.headers['x-telegram-bot-api-secret-token'] || '' }}",
+              "rightValue": "={{ $env.TELEGRAM_WEBHOOK_SECRET }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
             }
           ],
           "combinator": "and"
         },
         "options": {}
       },
-      "notes": "Sí: método de la Bot API. No: acción de transporte cm:store_file (descargar y subir un archivo). La rama Sí se ejecuta primero, así 'Recibiendo…' llega antes."
+      "notes": "Sin el secreto correcto se descarta en silencio: nadie puede usar el bot para escribirle a otros. Python lo vuelve a verificar (defensa en profundidad)."
     },
     {
-      "id": "5f0c2d6e-7a1b-4c3d-9e8f-0a1b2c3d4e04",
-      "name": "Telegram: ejecutar acción",
+      "id": "bb28e03e-6d5f-5450-8615-ab69990877c6",
+      "name": "Python: procesar update",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1040, -120],
+      "position": [
+        480,
+        -20
+      ],
       "parameters": {
         "method": "POST",
-        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/{{ $json.method }}",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "url": "={{ $env.CM_API_URL }}/api/internal/telegram/updates",
         "options": {
-          "timeout": 15000
-        }
-      },
-      "notes": "Ejecuta cada acción tal cual (sendMessage, answerCallbackQuery...). No interpreta nada."
-    },
-    {
-      "id": "5f0c2d6e-7a1b-4c3d-9e8f-0a1b2c3d4e06",
-      "name": "Telegram: getFile",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1040, 160],
-      "parameters": {
-        "method": "POST",
-        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/getFile",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ file_id: $json.payload.file_id }) }}",
-        "options": {
-          "timeout": 15000
-        }
-      },
-      "notes": "Telegram devuelve la ruta temporal del archivo (válida por 1 hora)."
-    },
-    {
-      "id": "5f0c2d6e-7a1b-4c3d-9e8f-0a1b2c3d4e07",
-      "name": "Telegram: descargar archivo",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1300, 160],
-      "parameters": {
-        "method": "GET",
-        "url": "=https://api.telegram.org/file/bot{{ $env.TELEGRAM_BOT_TOKEN }}/{{ $json.result.file_path }}",
-        "options": {
-          "timeout": 120000,
-          "response": {
-            "response": { "responseFormat": "file", "outputPropertyName": "data" }
-          }
-        }
-      }
-    },
-    {
-      "id": "5f0c2d6e-7a1b-4c3d-9e8f-0a1b2c3d4e08",
-      "name": "Python: guardar archivo",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1560, 160],
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $env.CM_API_URL }}/api/internal/telegram/files",
+          "timeout": 30000
+        },
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "X-Internal-Token", "value": "={{ $env.INTERNAL_API_TOKEN }}" }
+            {
+              "name": "X-Internal-Token",
+              "value": "={{ $env.INTERNAL_API_TOKEN }}"
+            },
+            {
+              "name": "X-Telegram-Secret",
+              "value": "={{ $json.headers['x-telegram-bot-api-secret-token'] || '' }}"
+            }
           ]
         },
         "sendBody": true,
-        "contentType": "multipart-form-data",
-        "bodyParameters": {
-          "parameters": [
-            { "parameterType": "formBinaryData", "name": "file", "inputDataFieldName": "data" },
-            { "parameterType": "formData", "name": "telegram_user_id", "value": "={{ $('¿Es mensaje de Telegram?').item.json.payload.telegram_user_id }}" },
-            { "parameterType": "formData", "name": "purpose", "value": "={{ $('¿Es mensaje de Telegram?').item.json.payload.purpose }}" },
-            { "parameterType": "formData", "name": "file_unique_id", "value": "={{ $('¿Es mensaje de Telegram?').item.json.payload.file_unique_id }}" },
-            { "parameterType": "formData", "name": "file_name", "value": "={{ $('¿Es mensaje de Telegram?').item.json.payload.file_name }}" }
-          ]
-        },
-        "options": {
-          "timeout": 120000
-        }
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}"
       },
-      "notes": "Python valida el archivo, lo guarda DE INMEDIATO (regla fundamental) y responde con las acciones siguientes."
+      "onError": "continueErrorOutput",
+      "notes": "Python decide TODO (reglas, permisos, estado de la conversación) y devuelve las acciones."
     },
     {
-      "id": "5f0c2d6e-7a1b-4c3d-9e8f-0a1b2c3d4e09",
-      "name": "Separar acciones (archivo)",
+      "id": "f1a1ace5-f2b6-5ef0-a7ba-259369a8a688",
+      "name": "Separar acciones",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1820, 160],
+      "position": [
+        740,
+        -40
+      ],
       "parameters": {
-        "jsCode": "return $input.all().flatMap(item => (item.json.actions || []).map(action => ({ json: action })));"
+        "jsCode": "// Una acción = un ítem. Sin acciones, el flujo termina aquí.\nreturn $input.all().flatMap(item => (item.json.actions || []).map(action => ({ json: action })));"
       }
+    },
+    {
+      "id": "9c484e3b-62b0-5f80-ae34-b7af24f0573f",
+      "name": "¿Es un archivo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        980,
+        -40
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "55279a67-aaf4-5079-8d8a-2c239d1dfaaa",
+              "leftValue": "={{ $json.method }}",
+              "rightValue": "cm:store_file",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "notes": "Rama superior (mensajes) primero: así 'Recibiendo…' llega antes de procesar el archivo."
+    },
+    {
+      "id": "55a46d7f-c17a-5af3-92f0-140b6e40f601",
+      "name": "CM-05: ejecutar acciones",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1240,
+        -140
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "cm05EjecutarAcciones",
+          "mode": "id"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "Si un mensaje falla, CM-05 lo reporta y el archivo (rama de abajo) se procesa igual."
+    },
+    {
+      "id": "8ad93284-f65d-5334-8df7-250f6f9e68b6",
+      "name": "CM-03: archivo e IA",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1240,
+        60
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "cm03ArchivosIA",
+          "mode": "id"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "mode": "each"
+      },
+      "notes": "Un archivo a la vez."
+    },
+    {
+      "id": "0ef448d6-14ae-59fe-8a25-6cf8de73625f",
+      "name": "Preparar aviso de falla",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        180
+      ],
+      "parameters": {
+        "jsCode": "const body = $('Telegram (webhook)').first().json.body || {};\nconst chat = body.message?.chat?.id ?? body.edited_message?.chat?.id\n  ?? body.callback_query?.message?.chat?.id ?? body.callback_query?.from?.id;\nconst detail = JSON.stringify($input.first().json.error || $input.first().json).slice(0, 300);\nreturn [{ json: {\n  chat_id: chat,\n  text: '⚠️ Tuve un problema procesando tu mensaje. Inténtalo de nuevo en un momento, por favor.',\n  detail,\n}}];"
+      }
+    },
+    {
+      "id": "0baf547a-6ecd-5e03-bf05-8e7c1228f47b",
+      "name": "Telegram: avisar al empleado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        980,
+        180
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}"
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "30bd7926-fc24-5422-af08-64b479bca025",
+      "name": "Detener con error",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1240,
+        180
+      ],
+      "parameters": {
+        "errorMessage": "={{ 'Python no pudo procesar un mensaje de Telegram: ' + $('Preparar aviso de falla').first().json.detail }}"
+      },
+      "notes": "Así se dispara CM-99 y el administrador se entera."
     }
   ],
   "connections": {
     "Telegram (webhook)": {
-      "main": [[{ "node": "Python: procesar update", "type": "main", "index": 0 }]]
-    },
-    "Python: procesar update": {
-      "main": [[{ "node": "Separar acciones", "type": "main", "index": 0 }]]
-    },
-    "Separar acciones": {
-      "main": [[{ "node": "¿Es mensaje de Telegram?", "type": "main", "index": 0 }]]
-    },
-    "¿Es mensaje de Telegram?": {
       "main": [
-        [{ "node": "Telegram: ejecutar acción", "type": "main", "index": 0 }],
-        [{ "node": "Telegram: getFile", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "¿Viene de Telegram?",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "Telegram: getFile": {
-      "main": [[{ "node": "Telegram: descargar archivo", "type": "main", "index": 0 }]]
+    "¿Viene de Telegram?": {
+      "main": [
+        [
+          {
+            "node": "Python: procesar update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "Telegram: descargar archivo": {
-      "main": [[{ "node": "Python: guardar archivo", "type": "main", "index": 0 }]]
+    "Python: procesar update": {
+      "main": [
+        [
+          {
+            "node": "Separar acciones",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar aviso de falla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "Python: guardar archivo": {
-      "main": [[{ "node": "Separar acciones (archivo)", "type": "main", "index": 0 }]]
+    "Separar acciones": {
+      "main": [
+        [
+          {
+            "node": "¿Es un archivo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "Separar acciones (archivo)": {
-      "main": [[{ "node": "Telegram: ejecutar acción", "type": "main", "index": 0 }]]
+    "¿Es un archivo?": {
+      "main": [
+        [
+          {
+            "node": "CM-05: ejecutar acciones",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "CM-03: archivo e IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar aviso de falla": {
+      "main": [
+        [
+          {
+            "node": "Telegram: avisar al empleado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram: avisar al empleado": {
+      "main": [
+        [
+          {
+            "node": "Detener con error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "pinData": {}

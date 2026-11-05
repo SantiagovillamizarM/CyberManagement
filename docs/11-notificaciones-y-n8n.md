@@ -75,4 +75,36 @@ del bot. Así n8n los ejecuta con el mismo nodo.
 
 ## Workflows de n8n (paso 6.2)
 
-Pendiente.
+Detalle completo en [n8n/README.md](../n8n/README.md). Se importan con `.\infra\n8n-import.ps1`.
+
+| Requerimiento 9 | Dónde quedó |
+|---|---|
+| WF1 Registro de empleados | CM-02 → Python (`bot/engine.py`: autorización de datos, código, vinculación) |
+| WF2 Registro de gastos | CM-02 (entrada y clasificación: mensaje o archivo) → Python (`bot/expense_flow.py`) |
+| WF3 Análisis de facturas con IA | CM-03 (obtiene la imagen) → Python (`services/extraction.py`: Gemini, validación, datos faltantes) |
+| WF4 Registro manual | Python (`bot/expense_flow.py`: pide, valida y confirma), con las acciones ejecutadas por CM-05 |
+| WF5 Control de viáticos | Python (`services/viaticos.py`); los avisos de saldo salen por CM-06 |
+| WF6 Notificaciones | CM-06 (entrega), CM-08 (recordatorios) y CM-99 (errores al administrador) |
+| WF7 Informes | Fase 8 |
+
+Las reglas de negocio quedan en Python, como pide el requerimiento. n8n coordina: recibe, descarga, entrega, programa y
+alerta.
+
+### Prueba en vivo (2026-11-04, n8n 2.46.4)
+
+Se usaron chats inexistentes para no escribirle a nadie, y se revisó el historial de ejecuciones de n8n. 12 de 12
+comprobaciones pasaron:
+
+- Webhook con un secreto falso: Python nunca recibe el mensaje.
+- Mensaje normal: CM-02 → Python → CM-05. Telegram rechaza el chat falso y CM-99 alerta **una** vez.
+- Python falla (422): CM-02 avisa al empleado, se detiene con error y CM-99 alerta.
+- Foto con un `file_id` inválido: CM-03 avisa *"No pude recibir tu archivo"* y CM-99 alerta. El mensaje "Recibiendo…"
+  falló antes, pero eso **no impidió** que el archivo se intentara procesar.
+- CM-06: un aviso a un chat inexistente terminó en `failed` con `400 Bad Request: chat not found`, sin reintentos.
+- CM-08 ejecutado a mano: Python devolvió los conteos.
+- CM-99 oculta el token del bot (`bot***`) en los mensajes de error.
+
+Hallazgos corregidos durante la prueba:
+
+1. Una falla en un sub-workflow generaba **dos** alertas.
+2. Si fallaba el mensaje "Recibiendo…", **la foto no se procesaba**. Eso violaba la regla fundamental.

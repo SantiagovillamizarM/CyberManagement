@@ -1,11 +1,11 @@
 import uuid
 from datetime import date, datetime, time
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Any
 
 from pydantic import BaseModel, Field, StringConstraints
 
-from app.models.enums import DataSource, ExpenseStatus, LocationSource, PaymentSource
+from app.models.enums import ActorType, DataSource, ExpenseStatus, LocationSource, PaymentSource
 from app.schemas.common import EmployeeRef, Money
 
 
@@ -115,3 +115,15 @@ class ExpenseOut(BaseModel):
 class ExpenseList(BaseModel):
     items: list[ExpenseOut]
     total: int
+
+
+class HistoryEntry(BaseModel):
+    entity_type: str  # "expense" o "document" (la foto del gasto)
+    action: str  # "create", "update", "status_approved", "attach"...
+    field: str | None
+    old_value: Any | None
+    new_value: Any | None
+    reason: str | None
+    actor_type: ActorType
+    actor_name: str
+    created_at: datetime

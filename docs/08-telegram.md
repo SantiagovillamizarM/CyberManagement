@@ -13,7 +13,9 @@ Telegram ──HTTPS + secret_token──► túnel (cloudflared) ──► n8n 
 
 - **Python decide todo**: el estado de la conversación (`bot_sessions`), las reglas, los permisos y los textos.
 - **n8n solo transporta**: no tiene ningún `if` de negocio.
-- **El token del bot** solo lo conoce n8n (variable de entorno). Python valida el `secret_token`.
+- **El token del bot** solo lo conoce n8n (variable de entorno). El `secret_token` lo verifican **n8n**
+  (CM-02, antes de hacer cualquier cosa) y **Python**.
+- Desde la Fase 6 el flujo está dividido en CM-02, CM-03 y CM-05, con manejo de errores; ver [n8n/README.md](../n8n/README.md).
 
 ## Contrato de acciones
 

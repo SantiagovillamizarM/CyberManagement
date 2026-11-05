@@ -10,8 +10,8 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import EDITORS, READERS, client_ip, require_roles
 from app.db.session import get_db
-from app.models import AdminUser, Category, Employee, Expense, Supplier
-from app.models.enums import ExpenseStatus
+from app.models import AdminUser, AuditLog, Category, Employee, Expense, Supplier
+from app.models.enums import ActorType, ExpenseStatus
 from app.schemas.common import EmployeeRef
 from app.schemas.expenses import (
     CategoryOut,
@@ -20,6 +20,7 @@ from app.schemas.expenses import (
     ExpenseList,
     ExpenseOut,
     ExpenseUpdate,
+    HistoryEntry,
     RejectRequest,
     SupplierOut,
 )
@@ -78,7 +79,10 @@ def _run(action: Callable[[], object]) -> None:
 @router.get("", response_model=ExpenseList)
 def list_expenses(
     employee_id: uuid.UUID | None = None,
-    status_filter: ExpenseStatus | None = Query(default=None, alias="status"),
+    # Se puede repetir: ?status=submitted&status=in_review ("por revisar").
+    status_filter: list[ExpenseStatus] | None = Query(default=None, alias="status"),
+    search: str | None = Query(default=None, max_length=200,
+                               description="Descripción, establecimiento, NIT o n.º de factura"),
     issue_date_from: date | None = None,
     issue_date_to: date | None = None,
     supplier_nit: str | None = Query(default=None, max_length=20),
@@ -95,7 +99,8 @@ def list_expenses(
 ) -> ExpenseList:
     filters = service.ExpenseFilters(
         employee_id=employee_id,
-        status=status_filter,
+        statuses=tuple(status_filter or ()),
+        search=search,
         issue_date_from=issue_date_from,
         issue_date_to=issue_date_to,
         supplier_nit=supplier_nit,
@@ -145,6 +150,36 @@ def get_expense(
     db: Session = Depends(get_db),
 ) -> ExpenseOut:
     return _to_out(db, _load(db, admin, expense_id))
+
+
+@router.get("/{expense_id}/history", response_model=list[HistoryEntry])
+def get_history(
+    expense_id: uuid.UUID,
+    admin: AdminUser = Depends(require_roles(*READERS)),
+    db: Session = Depends(get_db),
+) -> list[HistoryEntry]:
+    """Quién cambió qué y cuándo (incluye lo que corrigió el empleado desde el bot)."""
+    expense = _load(db, admin, expense_id)
+    names: dict[tuple[ActorType, str | None], str] = {}
+
+    def actor_name(entry: AuditLog) -> str:
+        key = (entry.actor_type, entry.actor_id)
+        if key not in names:
+            names[key] = "Sistema"
+            if entry.actor_type == ActorType.ADMIN and entry.actor_id:
+                person = db.get(AdminUser, uuid.UUID(entry.actor_id))
+                names[key] = person.full_name if person else "Administrador"
+            elif entry.actor_type == ActorType.EMPLOYEE and entry.actor_id:
+                person = db.get(Employee, uuid.UUID(entry.actor_id))
+                names[key] = f"{person.first_name} {person.last_name}" if person else "Empleado"
+        return names[key]
+
+    return [
+        HistoryEntry(entity_type=e.entity_type, action=e.action, field=e.field, old_value=e.old_value,
+                     new_value=e.new_value, reason=e.reason, actor_type=e.actor_type, actor_name=actor_name(e),
+                     created_at=e.created_at)
+        for e in service.history(db, expense)
+    ]
 
 
 @router.patch("/{expense_id}", response_model=ExpenseOut)

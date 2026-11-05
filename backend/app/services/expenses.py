@@ -12,11 +12,11 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import StaleDataError
 
-from app.models import Employee, Expense, ExpenseItem, Supplier, Viatico
+from app.models import AuditLog, Document, Employee, Expense, ExpenseItem, Supplier, Viatico
 from app.models.enums import (
     ActorType,
     DataSource,
@@ -98,6 +98,8 @@ class DuplicateInvoiceError(Exception):
 class ExpenseFilters:
     employee_id: uuid.UUID | None = None
     status: ExpenseStatus | None = None
+    statuses: tuple[ExpenseStatus, ...] = ()  # varios a la vez (p. ej. "por revisar" = enviado + en revisión)
+    search: str | None = None  # texto libre: descripción, establecimiento, NIT o n.º de factura
     issue_date_from: date | None = None
     issue_date_to: date | None = None
     supplier_nit: str | None = None
@@ -129,6 +131,17 @@ def list_expenses(
         query = query.where(Expense.employee_id == f.employee_id)
     if f.status:
         query = query.where(Expense.status == f.status)
+    if f.statuses:
+        query = query.where(Expense.status.in_(f.statuses))
+    if f.search and f.search.strip():
+        text = f.search.strip()
+        pattern = f"%{text}%"
+        conditions = [Expense.description.ilike(pattern), Supplier.name.ilike(pattern),
+                      Expense.invoice_number.ilike(pattern)]
+        digits = "".join(c for c in text.split("-")[0] if c.isdigit())
+        if len(digits) >= 3:  # parece un NIT
+            conditions.append(Supplier.nit.like(f"{digits}%"))
+        query = query.where(or_(*conditions))
     if f.issue_date_from:
         query = query.where(Expense.issue_date >= f.issue_date_from)
     if f.issue_date_to:
@@ -280,10 +293,13 @@ def warnings(expense: Expense) -> list[str]:
         if abs(expense.subtotal + expense.tax_total - expense.total) > TOLERANCE:
             found.append("El subtotal más los impuestos no coincide con el total")
     line_totals = [i.line_total for i in expense.items if i.line_total is not None]
-    reference = expense.subtotal if expense.subtotal is not None else expense.total
-    if line_totals and reference is not None and len(line_totals) == len(expense.items):
-        if abs(sum(line_totals, Decimal("0")) - reference) > TOLERANCE:
-            found.append("La suma de los productos no coincide con el subtotal")
+    # En Colombia los precios de los productos suelen incluir el IVA: la suma puede dar el
+    # subtotal (precios sin impuestos) o el total (precios con impuestos). Ambas cuadran.
+    references = [r for r in (expense.subtotal, expense.total) if r is not None]
+    if line_totals and references and len(line_totals) == len(expense.items):
+        line_sum = sum(line_totals, Decimal("0"))
+        if all(abs(line_sum - r) > TOLERANCE for r in references):
+            found.append("La suma de los productos no coincide con el subtotal ni con el total")
     if expense.supplier_id is None:
         found.append("No se registró el NIT del establecimiento")
     return found
@@ -570,6 +586,19 @@ def delete_expense(db: Session, expense: Expense, actor: Actor) -> None:
         actor=actor,
     )
     db.flush()
+
+
+def history(db: Session, expense: Expense) -> list[AuditLog]:
+    """Todo lo que le pasó al gasto (y a sus documentos), del más antiguo al más reciente."""
+    document_ids = [str(d) for d in db.scalars(select(Document.id).where(Document.expense_id == expense.id))]
+    return list(db.scalars(
+        select(AuditLog)
+        .where(AuditLog.company_id == expense.company_id, or_(
+            (AuditLog.entity_type == ENTITY) & (AuditLog.entity_id == str(expense.id)),
+            (AuditLog.entity_type == "document") & AuditLog.entity_id.in_(document_ids),
+        ))
+        .order_by(AuditLog.created_at, AuditLog.id)
+    ))
 
 
 def employee_of(db: Session, company_id: uuid.UUID, employee_id: uuid.UUID) -> Employee:
