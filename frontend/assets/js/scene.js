@@ -147,12 +147,48 @@ export function vaultScene() {
 
     // Solo se afirma lo que el sistema hace: guarda todo, con historial. (La BD no está
     // cifrada en reposo; no decir "cifrado" aquí.)
-    s("g", { class: "vs-badge" },
-      s("rect", { x: 70, y: 382, width: 160, height: 28, rx: 14 }),
-      s("path", { d: "M88 396 l4 4 8-9", fill: "none", stroke: "#2bd9a0", "stroke-width": 2,
-        "stroke-linecap": "round", "stroke-linejoin": "round" }),
-      t(108, 400, "Guardado con historial", "vs-badge-text")),
+    badge(),
   );
+}
+
+/*
+ * Pastilla "Guardado con historial", centrada en x = 150.
+ * Medidas para Archivo 700 a 12 px (el texto mide ~130): margen 18 + ícono 12 + espacio 8 + texto + margen 18.
+ * Antes medía 160 y el texto se salía por la derecha. Por si cambian el texto o la fuente, al cargar la
+ * fuente se mide el texto real y la pastilla se ajusta (fitBadge).
+ */
+const BADGE = { cx: 150, y: 382, height: 28, pad: 18, icon: 12, gap: 8 };
+
+function badge() {
+  const textWidth = 130;
+  const width = BADGE.pad * 2 + BADGE.icon + BADGE.gap + textWidth;
+  const x = BADGE.cx - width / 2;
+  const rect = s("rect", { x, y: BADGE.y, width, height: BADGE.height, rx: BADGE.height / 2 });
+  const check = s("path", { d: checkPath(x + BADGE.pad), fill: "none", stroke: "#2bd9a0", "stroke-width": 2,
+    "stroke-linecap": "round", "stroke-linejoin": "round" });
+  const label = t(x + BADGE.pad + BADGE.icon + BADGE.gap, 400, "Guardado con historial", "vs-badge-text");
+  const group = s("g", { class: "vs-badge" }, rect, check, label);
+  document.fonts?.ready.then(() => requestAnimationFrame(() => fitBadge(rect, check, label)));
+  return group;
+}
+
+const checkPath = (left) => `M${left} 396 l4 4 8-9`;
+
+function fitBadge(rect, check, label) {
+  if (!label.isConnected) return;
+  let measured;
+  try {
+    measured = label.getComputedTextLength();
+  } catch {
+    return; // sin medidas (por ejemplo, el SVG aún no se ve): quedan las medidas por defecto
+  }
+  if (!measured) return;
+  const width = BADGE.pad * 2 + BADGE.icon + BADGE.gap + measured;
+  const x = BADGE.cx - width / 2;
+  rect.setAttribute("x", x.toFixed(1));
+  rect.setAttribute("width", width.toFixed(1));
+  check.setAttribute("d", checkPath(x + BADGE.pad));
+  label.setAttribute("x", (x + BADGE.pad + BADGE.icon + BADGE.gap).toFixed(1));
 }
 
 /** El viático: cuánto se entregó, cuánto se ha gastado y cuánto queda. */

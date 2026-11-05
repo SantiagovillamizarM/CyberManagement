@@ -124,3 +124,21 @@ def test_dashboard_charts_render_and_read_values(page: Page, credentials: Creden
             with engine.begin() as conn:
                 conn.execute(text("DELETE FROM expenses WHERE employee_id = :id"), {"id": employee["id"]})
                 conn.execute(text("DELETE FROM employees WHERE id = :id"), {"id": employee["id"]})
+
+
+def test_saved_badge_text_fits_inside_its_pill(page: Page) -> None:
+    """Regresión: "Guardado con historial" se salía por la derecha de la pastilla verde."""
+    page.goto(f"{BASE_URL}/login.html")
+    page.click(".carousel-dot:nth-child(2)")  # escena "Guarda cada dato"
+    page.wait_for_selector(".vs-badge-text", state="attached")
+    page.evaluate("document.fonts.ready")
+    page.wait_for_timeout(300)
+
+    margins = page.eval_on_selector(".vs-badge-text", """t => {
+        const r = t.closest('g').querySelector('rect');
+        const left = Number(t.getAttribute('x')) - Number(r.getAttribute('x'));
+        const right = Number(r.getAttribute('x')) + Number(r.getAttribute('width'))
+          - Number(t.getAttribute('x')) - t.getComputedTextLength();
+        return [left, right];
+    }""")
+    assert margins[1] >= 12, f"el texto se sale o queda pegado al borde: {margins}"
