@@ -45,7 +45,13 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
+      # Opcionales de la IA (con su valor por defecto: nunca llegan vacíos).
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      GEMINI_TIMEOUT_SECONDS: ${GEMINI_TIMEOUT_SECONDS:-45}
+      AI_MIN_CONFIDENCE: ${AI_MIN_CONFIDENCE:-0.5}
       TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET}
+      # Chat del administrador: avisos (gastos por revisar) e informe mensual. Vacío = no se envían.
+      ADMIN_TELEGRAM_CHAT_ID: ${ADMIN_TELEGRAM_CHAT_ID:-}
       STORAGE_DIR: /data/storage
       FRONTEND_DIR: /code/frontend
     # --reload: reinicia automáticamente al guardar cambios en el código.

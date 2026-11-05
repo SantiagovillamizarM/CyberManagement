@@ -1,0 +1,312 @@
+{
+  "id": "cm07InformeMensual",
+  "name": "CM-07 · Informe mensual",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "cm99Errores",
+    "saveManualExecutions": true
+  },
+  "nodes": [
+    {
+      "id": "2e1f6a35-5889-5ea1-9331-47ef5686a26d",
+      "name": "Día 1 de cada mes, 7:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 1 * *"
+            }
+          ]
+        }
+      },
+      "notes": "Hora de Colombia. Envía el informe del mes ANTERIOR completo."
+    },
+    {
+      "id": "29207948-b6f6-503c-a24a-30a0591ca415",
+      "name": "Ejecutar ahora",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        180
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "b4220422-350d-56ce-b90d-9e486f2f27ca",
+      "name": "Python: generar informe del mes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        80
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CM_API_URL }}/api/internal/reports/monthly",
+        "options": {
+          "timeout": 180000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-Token",
+              "value": "={{ $env.INTERNAL_API_TOKEN }}"
+            }
+          ]
+        }
+      },
+      "notes": "Python decide qué incluir y a quién va. Si ya existe el de ese mes, lo reutiliza (nunca se duplica)."
+    },
+    {
+      "id": "5c2ef622-206d-5ffa-b10e-418ebba585b7",
+      "name": "Preparar envíos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        80
+      ],
+      "parameters": {
+        "jsCode": "const r = $input.first().json;\n// \"skipped\": no hay chat del administrador configurado. No es un error: simplemente no hay a quién enviarlo.\nif (r.status !== 'ready') return [];\n// Si ya se envió (n8n se ejecutó dos veces el mismo mes), no se vuelve a mandar.\nreturn (r.deliveries || []).filter(d => !d.already_sent).map(d => ({ json: d }));"
+      }
+    },
+    {
+      "id": "c8ee7d5e-f9a8-5ffa-90b1-371c1bef7e67",
+      "name": "Python: descargar PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        80
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.CM_API_URL }}{{ $json.file_path }}",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-Token",
+              "value": "={{ $env.INTERNAL_API_TOKEN }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "d141bb71-12a7-599a-889a-e2e080049290",
+      "name": "Telegram: enviar PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        80
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendDocument",
+        "options": {
+          "timeout": 120000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formData",
+              "name": "chat_id",
+              "value": "={{ $('Preparar envíos').item.json.chat_id }}"
+            },
+            {
+              "parameterType": "formData",
+              "name": "caption",
+              "value": "={{ $('Preparar envíos').item.json.caption }}"
+            },
+            {
+              "parameterType": "formData",
+              "name": "parse_mode",
+              "value": "HTML"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "document",
+              "inputDataFieldName": "data"
+            }
+          ]
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "9f971822-8eb8-5a8e-ac26-d4c8a1692f8c",
+      "name": "Preparar resultado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        80
+      ],
+      "parameters": {
+        "jsCode": "const sent = $('Preparar envíos').all();\nreturn $input.all().map((item, i) => {\n  const r = item.json;\n  return { json: {\n    report_id: sent[i].json.report_id,\n    ok: r.ok === true,\n    error_code: r.ok === true ? null : (r.error_code ?? null),\n    description: r.ok === true ? null : String(r.description || r.error?.message || 'sin respuesta de Telegram').slice(0, 900),\n  }};\n});"
+      }
+    },
+    {
+      "id": "8dc7cdfe-ccb6-51ca-a0a0-27a02dc5fa00",
+      "name": "Python: informar entrega",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        80
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CM_API_URL }}/api/internal/reports/{{ $json.report_id }}/delivery",
+        "options": {
+          "timeout": 15000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-Token",
+              "value": "={{ $env.INTERNAL_API_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ ok: $json.ok, error_code: $json.error_code, description: $json.description }) }}"
+      }
+    },
+    {
+      "id": "58b4e1ab-df0d-5aa3-bf39-3400cf66b449",
+      "name": "¿Se entregó?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1820,
+        80
+      ],
+      "parameters": {
+        "jsCode": "const results = $('Preparar resultado').all().map(i => i.json);\nconst failed = results.filter(r => !r.ok);\nif (failed.length) {\n  throw new Error('No se pudo enviar el informe mensual por Telegram: ' + failed.map(f => `${f.error_code || ''} ${f.description}`.trim()).join(' | '));\n}\nreturn $input.all();"
+      },
+      "notes": "Si Telegram lo rechazó, falla a propósito: así CM-99 alerta."
+    }
+  ],
+  "connections": {
+    "Día 1 de cada mes, 7:00": {
+      "main": [
+        [
+          {
+            "node": "Python: generar informe del mes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ejecutar ahora": {
+      "main": [
+        [
+          {
+            "node": "Python: generar informe del mes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Python: generar informe del mes": {
+      "main": [
+        [
+          {
+            "node": "Preparar envíos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar envíos": {
+      "main": [
+        [
+          {
+            "node": "Python: descargar PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Python: descargar PDF": {
+      "main": [
+        [
+          {
+            "node": "Telegram: enviar PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram: enviar PDF": {
+      "main": [
+        [
+          {
+            "node": "Preparar resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar resultado": {
+      "main": [
+        [
+          {
+            "node": "Python: informar entrega",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Python: informar entrega": {
+      "main": [
+        [
+          {
+            "node": "¿Se entregó?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {}
+}

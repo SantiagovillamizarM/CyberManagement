@@ -65,10 +65,38 @@ Colombia.
 | Historial | Los últimos 20 informes: cuándo, período, filtros, quién, facturas y total, con *Ver* y *Descargar*. `informes.html?id=<id>` abre uno directamente |
 | Roles | El auditor también genera informes |
 
+## Informe mensual automático (paso 8.3, WF7 = CM-07)
+
+```
+CM-07 (día 1, 7:00 a. m.) ─► POST /api/internal/reports/monthly      Python genera el del mes anterior
+                          ─► GET  /api/internal/reports/{id}/file     n8n descarga el PDF
+                          ─► Telegram sendDocument                    al chat del administrador
+                          ─► POST /api/internal/reports/{id}/delivery n8n informa si llegó
+```
+
+| Regla | Detalle |
+|---|---|
+| Período | El mes anterior **completo**, del día 1 al último día (incluido el 29 de febrero en años bisiestos), con los estados por defecto |
+| Nunca se duplica | Si ya existe el informe de ese mes se reutiliza. Un **índice único** en la base (`uq_reports_monthly`, por empresa y mes) lo garantiza aunque dos ejecuciones corran a la vez |
+| Nunca se reenvía | Si ya se entregó (`summary.telegram_sent_at`), n8n no lo vuelve a mandar. Si falló, el error queda en `summary.telegram_error` y la siguiente ejecución lo intenta de nuevo |
+| Sin chat | Sin `ADMIN_TELEGRAM_CHAT_ID`, Python responde `skipped`: no genera nada y n8n termina sin error |
+| Mensaje | "📊 Informe de gastos de octubre de 2026", la empresa, las facturas, el total y el saldo de viáticos. El nombre de la empresa se escapa |
+| Fallas | Si Telegram rechaza el PDF, CM-07 falla a propósito para que CM-99 alerte |
+| En el panel | Aparece en "Informes anteriores" como generado por "Envío automático mensual" |
+
+Para recibirlo, configura `ADMIN_TELEGRAM_CHAT_ID` en el `.env` y ejecuta `docker compose up -d api n8n`.
+
 ## Pruebas
 
-`tests/test_reports.py` (21 pruebas) y `tests_e2e/test_panel_reports.py` (7 pruebas en Edge real). Se inyectaron 6 fallas y todas fueron detectadas: texto sin escapar, rechazados
+`tests/test_reports.py` (21 pruebas), `tests/test_reports_monthly.py` (11) y `tests_e2e/test_panel_reports.py` (7 en Edge real). Se inyectaron 6 fallas y todas fueron detectadas: texto sin escapar, rechazados
 por defecto, sin fecha final, iframe permitido en todo el sitio, sin auditoría e informe de otra empresa.
 
 Prueba en vivo (2026-11-04): con los datos reales de desarrollo generó un PDF de 2 páginas con la foto real de la
 factura. Ese informe de prueba se borró después.
+
+Prueba en vivo del 8.3 (2026-11-04):
+
+- **Sin chat configurado:** CM-07 terminó bien con `skipped` y no se creó ningún informe.
+- **Con un chat falso temporal (`-1`):** Python generó el informe de octubre, n8n descargó el PDF y lo envió con
+  `sendDocument`. Telegram respondió `400 chat not found`, el error quedó guardado en el informe y CM-07 terminó en
+  error a propósito. Después se borró el informe y se restauró la configuración.

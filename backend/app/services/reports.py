@@ -8,11 +8,12 @@ incluye lo que cuenta como gastado (enviado, en revisión, aprobado y cerrado).
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import Date, cast, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -221,15 +222,15 @@ def generate(db: Session, storage: Storage, admin: AdminUser, filters: ReportFil
     return _store(db, storage, data, generated_by_id=admin.id, actor=actor), data
 
 
-def generate_for_system(db: Session, storage: Storage, company_id: uuid.UUID,
-                        filters: ReportFilters) -> tuple[Report, ReportData]:
+def generate_for_system(db: Session, storage: Storage, company_id: uuid.UUID, filters: ReportFilters,
+                        extra_filters: dict[str, Any] | None = None) -> tuple[Report, ReportData]:
     """Lo pide n8n (WF7, informe mensual automático): no hay un administrador detrás."""
     data = collect(db, company_id, filters, generated_by="Envío automático mensual")
-    return _store(db, storage, data, generated_by_id=None, actor=audit.SYSTEM), data
+    return _store(db, storage, data, generated_by_id=None, actor=audit.SYSTEM, extra_filters=extra_filters), data
 
 
 def _store(db: Session, storage: Storage, data: ReportData, *, generated_by_id: uuid.UUID | None,
-           actor: Actor) -> Report:
+           actor: Actor, extra_filters: dict[str, Any] | None = None) -> Report:
     from app.reports.pdf import build_pdf  # ReportLab solo se carga cuando se genera un informe
 
     pdf = build_pdf(data, storage)
@@ -240,7 +241,8 @@ def _store(db: Session, storage: Storage, data: ReportData, *, generated_by_id: 
     storage.save(key, pdf)  # disco primero; si la BD falla, se borra el archivo (no quedan huérfanos)
     try:
         report = Report(id=report_id, company_id=company_id, generated_by_id=generated_by_id,
-                        filters=data.filters.to_json(), summary=data.summary(), storage_key=key, size_bytes=len(pdf))
+                        filters={**data.filters.to_json(), **(extra_filters or {})}, summary=data.summary(),
+                        storage_key=key, size_bytes=len(pdf))
         with db.begin_nested():
             db.add(report)
             db.flush()
@@ -262,3 +264,47 @@ def get_report(db: Session, company_id: uuid.UUID, report_id: uuid.UUID) -> Repo
 def list_reports(db: Session, company_id: uuid.UUID, limit: int = 30) -> list[Report]:
     return list(db.scalars(select(Report).where(Report.company_id == company_id)
                            .order_by(Report.created_at.desc()).limit(limit)))
+
+
+# --- Informe mensual automático (WF7 en n8n) ---
+
+MONTHS = ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre",
+          "noviembre", "diciembre")
+
+
+def previous_month(today: date) -> date:
+    """Primer día del mes anterior a `today`."""
+    return (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+
+
+def month_label(first_day: date) -> str:
+    return f"{MONTHS[first_day.month - 1]} de {first_day.year}"
+
+
+def monthly_report(db: Session, storage: Storage, company_id: uuid.UUID, month: date) -> Report:
+    """El informe de `month` completo. Si ya existe (n8n reintentó), se reutiliza: nunca se duplica."""
+    key = month.strftime("%Y-%m")
+    find = select(Report).where(Report.company_id == company_id, Report.filters["monthly"].astext == key)
+    existing = db.scalar(find)
+    if existing is not None:
+        return existing
+    last_day = (month.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+    try:
+        report, _ = generate_for_system(db, storage, company_id, ReportFilters(date_from=month, date_to=last_day),
+                                        extra_filters={"monthly": key})
+    except IntegrityError:
+        # Otra ejecución lo creó al mismo tiempo (índice único por empresa y mes): se usa ese.
+        return db.scalar(find)
+    return report
+
+
+def mark_delivery(db: Session, report: Report, *, ok: bool, error: str | None = None) -> None:
+    """Lo que informó n8n al enviarlo por Telegram (queda en el resumen del informe)."""
+    summary = dict(report.summary or {})
+    if ok:
+        summary["telegram_sent_at"] = datetime.now(UTC).isoformat()
+        summary.pop("telegram_error", None)
+    else:
+        summary["telegram_error"] = (error or "error desconocido")[:500]
+    report.summary = summary
+    db.flush()

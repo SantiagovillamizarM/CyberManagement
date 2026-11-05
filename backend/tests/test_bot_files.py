@@ -334,7 +334,7 @@ def test_ca10_n8n_workflows_are_consistent() -> None:
     workflows = [json.loads(f.read_text("utf-8")) for f in Path(PROJECT_ROOT, "n8n/workflows").glob("*.json")]
     ids = {w["id"] for w in workflows}
     assert {"cm02EntradaTelegram", "cm03ArchivosIA", "cm05EjecutarAcciones", "cm06Notificaciones",
-            "cm08Recordatorios", "cm99Errores"} <= ids
+            "cm07InformeMensual", "cm08Recordatorios", "cm99Errores"} <= ids
 
     for workflow in workflows:
         names = {node["name"] for node in workflow["nodes"]}
@@ -351,6 +351,7 @@ def test_ca10_n8n_workflows_are_consistent() -> None:
 
     urls = " ".join(str(n["parameters"].get("url", "")) for w in workflows for n in w["nodes"])
     for path in ("/api/internal/telegram/updates", "/api/internal/telegram/files", "/getFile",
-                 "api.telegram.org/file/bot", "/api/internal/notifications/claim", "/api/internal/reminders/run"):
+                 "api.telegram.org/file/bot", "/api/internal/notifications/claim", "/api/internal/reminders/run",
+                 "/api/internal/reports/monthly", "/sendDocument"):
         assert path in urls, path
     assert "TELEGRAM_BOT_TOKEN" not in json.dumps([w["settings"] for w in workflows])  # nunca el token en claro

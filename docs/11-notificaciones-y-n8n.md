@@ -85,7 +85,7 @@ Detalle completo en [n8n/README.md](../n8n/README.md). Se importan con `.\infra\
 | WF4 Registro manual | Python (`bot/expense_flow.py`: pide, valida y confirma), con las acciones ejecutadas por CM-05 |
 | WF5 Control de viáticos | Python (`services/viaticos.py`); los avisos de saldo salen por CM-06 |
 | WF6 Notificaciones | CM-06 (entrega), CM-08 (recordatorios) y CM-99 (errores al administrador) |
-| WF7 Informes | Fase 8 |
+| WF7 Informes | CM-07 (día 1 de cada mes) → Python genera el informe del mes anterior → n8n lo envía por Telegram (ver [12-informes.md](12-informes.md)) |
 
 Las reglas de negocio quedan en Python, como pide el requerimiento. n8n coordina: recibe, descarga, entrega, programa y
 alerta.

@@ -10,6 +10,7 @@ y a quién.
 | `cm-03-archivos-ia.json` | CM-03 · Archivos e IA | Sub-workflow | Descarga el archivo de Telegram y lo sube a Python, que lo guarda y lo lee con Gemini. Las acciones resultantes van a CM-05 |
 | `cm-05-ejecutar-acciones.json` | CM-05 · Ejecutar acciones | Sub-workflow | Ejecuta cada acción en la Bot API. Ignora errores inofensivos y reporta los demás |
 | `cm-06-notificaciones.json` | CM-06 · Notificaciones | Cada minuto (y a mano) | Toma la bandeja de salida de Python, envía los avisos e informa el resultado de cada uno |
+| `cm-07-informe-mensual.json` | CM-07 · Informe mensual (WF7) | Día 1, 7:00 a. m. (y a mano) | Python genera el informe del mes anterior; n8n descarga el PDF y lo envía con `sendDocument` al chat del administrador, y le informa a Python si llegó |
 | `cm-08-recordatorios.json` | CM-08 · Recordatorios | 8:00 a. m. (y a mano) | Le pide a Python crear los recordatorios del día. Se envían por CM-06 |
 | `cm-99-errores.json` | CM-99 · Errores | Falla de otro workflow | Alerta al administrador por Telegram, con el token del bot oculto |
 
@@ -20,8 +21,9 @@ Telegram ─► CM-02 ─(secreto ok)─► Python /updates
               ├─ mensajes ─► CM-05 ─► Telegram
               └─ archivos ─► CM-03 ─► getFile ─► descarga ─► Python /files (guarda + Gemini) ─► CM-05
 CM-06 (cada minuto) ─► /notifications/claim ─► Telegram ─► /notifications/{id}/result
+CM-07 (día 1, 7:00) ─► /reports/monthly ─► descarga el PDF ─► Telegram sendDocument ─► /reports/{id}/delivery
 CM-08 (8:00 a. m.)  ─► /reminders/run
-CM-99 ◄── CM-02, CM-05, CM-06 y CM-08 cuando fallan
+CM-99 ◄── CM-02, CM-05, CM-06, CM-07 y CM-08 cuando fallan
 ```
 
 ## Manejo de errores
@@ -48,7 +50,7 @@ CM-99 ◄── CM-02, CM-05, CM-06 y CM-08 cuando fallan
 | `INTERNAL_API_TOKEN` | Cabecera `X-Internal-Token` hacia Python |
 | `TELEGRAM_BOT_TOKEN` | Llamadas a `api.telegram.org` |
 | `TELEGRAM_WEBHOOK_SECRET` | CM-02 descarta lo que no lo traiga |
-| `ADMIN_TELEGRAM_CHAT_ID` | A dónde envía CM-99 las alertas (opcional) |
+| `ADMIN_TELEGRAM_CHAT_ID` | A dónde envía CM-99 las alertas (opcional). El informe mensual usa el mismo chat, pero ese lo decide Python |
 
 ## Importar o actualizar los workflows
 
@@ -58,7 +60,7 @@ Con n8n encendido, desde la raíz del proyecto:
 .\infra\n8n-import.ps1
 ```
 
-El script importa y publica los 6 workflows en el orden correcto y reinicia n8n. Cada workflow tiene un ID fijo, así
+El script importa y publica los 7 workflows en el orden correcto y reinicia n8n. Cada workflow tiene un ID fijo, así
 que importar de nuevo **reemplaza** la versión anterior; no crea copias.
 
 Si editas un workflow desde la interfaz (http://127.0.0.1:5678), expórtalo y reemplaza el JSON de esta carpeta para no
@@ -69,3 +71,6 @@ Para ejecutar CM-08 a mano desde la terminal (con n8n encendido se necesita otro
 ```powershell
 docker compose exec -e N8N_RUNNERS_BROKER_PORT=5690 n8n n8n execute --id=cm08Recordatorios
 ```
+
+> n8n **no** dispara CM-99 en las ejecuciones manuales (`n8n execute` o el botón "Ejecutar ahora"); solo en las
+> automáticas (webhook o programación). Así funciona n8n.

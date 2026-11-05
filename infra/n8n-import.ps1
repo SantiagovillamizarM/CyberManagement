@@ -17,6 +17,7 @@ $order = @(
     @{ file = "cm-03-archivos-ia.json";        id = "cm03ArchivosIA" },
     @{ file = "cm-02-entrada-telegram.json";   id = "cm02EntradaTelegram" },
     @{ file = "cm-06-notificaciones.json";     id = "cm06Notificaciones" },
+    @{ file = "cm-07-informe-mensual.json";    id = "cm07InformeMensual" },
     @{ file = "cm-08-recordatorios.json";      id = "cm08Recordatorios" }
 )
 

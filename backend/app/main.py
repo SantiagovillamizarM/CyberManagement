@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api import health
 from app.api.internal import documents as internal_documents
 from app.api.internal import notifications as internal_notifications
+from app.api.internal import reports as internal_reports
 from app.api.internal import registration as internal_registration
 from app.api.internal import telegram as internal_telegram
 from app.api.v1 import auth, catalog, documents, employees, expenses, reports, stats, viaticos
@@ -64,6 +65,7 @@ app.include_router(internal_registration.router, prefix="/api/internal")
 app.include_router(internal_documents.router, prefix="/api/internal")
 app.include_router(internal_telegram.router, prefix="/api/internal")
 app.include_router(internal_notifications.router, prefix="/api/internal")
+app.include_router(internal_reports.router, prefix="/api/internal")
 
 # Panel web. Se monta AL FINAL para que /api/* tenga prioridad.
 # En producción lo servirá Caddy directamente (Fase 10).
