@@ -142,3 +142,41 @@ def test_saved_badge_text_fits_inside_its_pill(page: Page) -> None:
         return [left, right];
     }""")
     assert margins[1] >= 12, f"el texto se sale o queda pegado al borde: {margins}"
+
+
+def test_dashboard_uses_server_stats(page: Page, credentials: Credentials) -> None:
+    """Paso 7.4: el navegador ya no descarga 200 gastos para sumarlos; las cifras vienen del servidor."""
+    with httpx.Client(base_url=f"{BASE_URL}/api/v1") as api:
+        headers = {"X-CSRF-Token": api.post("/auth/login", json={
+            "email": credentials.admin_email, "password": credentials.admin_initial_password}).json()["csrf_token"]}
+        employee = api.post("/employees", json={"first_name": "Estadística", "last_name": "Prueba",
+                                                "internal_id": "E2E-STATS"}, headers=headers).json()
+        viatico = api.post("/viaticos", json={"employee_id": employee["id"], "initial_amount": "300000",
+                                              "purpose": "E2E estadísticas"}, headers=headers).json()
+        expense = api.post("/expenses", json={"employee_id": employee["id"], "viatico_id": viatico["id"],
+                                              "description": "E2E stats", "total": "120000",
+                                              "issue_date": date.today().isoformat(), "payment_source": "viatico"},
+                           headers=headers).json()
+        api.post(f"/expenses/{expense['id']}/submit", headers=headers)
+    requests: list[str] = []
+    page.on("request", lambda r: requests.append(r.url))
+    try:
+        login(page, credentials)
+        expect(page.locator(".rank-row", has_text="Estadística Prueba")).to_be_visible()
+        wait_for_entrance(page)
+        viaticos = page.locator(".dash-viaticos")
+        expect(viaticos).to_contain_text("Viáticos entregados")
+        expect(viaticos).to_contain_text("Saldo restante")
+        expect(page.locator(".vt-row-link", has_text="E2E estadísticas")).to_have_attribute(
+            "href", f"/viaticos.html?id={viatico['id']}")
+
+        assert any("/api/v1/stats/dashboard" in url for url in requests)
+        assert not any("/api/v1/expenses?limit=200" in url for url in requests)
+    finally:
+        with engine.begin() as conn:
+            conn.execute(text("DELETE FROM audit_log WHERE entity_id IN (:e, :x, :v)"),
+                         {"e": employee["id"], "x": expense["id"], "v": viatico["id"]})
+            conn.execute(text("DELETE FROM notifications WHERE employee_id = :id"), {"id": employee["id"]})
+            conn.execute(text("DELETE FROM expenses WHERE employee_id = :id"), {"id": employee["id"]})
+            conn.execute(text("DELETE FROM viaticos WHERE employee_id = :id"), {"id": employee["id"]})
+            conn.execute(text("DELETE FROM employees WHERE id = :id"), {"id": employee["id"]})

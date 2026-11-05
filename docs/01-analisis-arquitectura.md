@@ -14,7 +14,7 @@
 | Código de registro | Formato `NOMBRE-XXXX-XXXX` (Crockford base32), un solo uso, 72 h de vigencia, guardado como HMAC. |
 | Categoría | Gemini la sugiere y el empleado la confirma. |
 | Frontend | HTML + CSS + JS (módulos ES) + Chart.js, sin frameworks. |
-| PDF | WeasyPrint + Jinja2, dentro de Docker. |
+| PDF | **ReportLab** (Python puro). Cambio aprobado el 2026-11-04: WeasyPrint necesitaba GTK/Pango instalados en Windows para correr las pruebas. |
 
 ## Principio de comunicación
 
@@ -70,11 +70,14 @@ factura válida.
 - [x] Fase 6 — n8n (ver [11-notificaciones-y-n8n.md](11-notificaciones-y-n8n.md); el WF7 de informes llega con la Fase 8)
   - [x] 6.1 Avisos por Telegram (bandeja de salida) y recordatorios
   - [x] 6.2 Workflows: entrega de avisos, recordatorios diarios, manejo de errores
-- [ ] Fase 7 — Panel web (adelantada; ver [09-panel-web.md](09-panel-web.md))
+- [x] Fase 7 — Panel web (ver [09-panel-web.md](09-panel-web.md))
   - [x] 7.1 Diseño base, login y empleados
   - [x] 7.2 Facturas y gastos
   - [x] 7.3 Viáticos
-  - [ ] 7.4 Dashboard con gráficos
-- [ ] Fase 8 — Informes
+  - [x] 7.4 Dashboard con estadísticas calculadas en el servidor
+- [ ] Fase 8 — Informes (ver [12-informes.md](12-informes.md))
+  - [x] 8.1 Generación del PDF, guardado y endpoints
+  - [ ] 8.2 Página de informes con vista previa
+  - [ ] 8.3 WF7: informe mensual por Telegram
 - [ ] Fase 9 — Pruebas y seguridad
 - [ ] Fase 10 — Despliegue

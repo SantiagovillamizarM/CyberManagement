@@ -8,7 +8,7 @@ from app.api.internal import documents as internal_documents
 from app.api.internal import notifications as internal_notifications
 from app.api.internal import registration as internal_registration
 from app.api.internal import telegram as internal_telegram
-from app.api.v1 import auth, catalog, documents, employees, expenses, viaticos
+from app.api.v1 import auth, catalog, documents, employees, expenses, reports, stats, viaticos
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 
@@ -37,7 +37,9 @@ PANEL_CSP = (
 async def security_headers(request: Request, call_next) -> Response:
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"  # no adivinar tipos de archivo
-    response.headers["X-Frame-Options"] = "DENY"  # nadie puede incrustar el panel en un iframe
+    # Nadie puede incrustar el panel en un iframe. Excepción explícita: la vista previa de los
+    # informes PDF declara SAMEORIGIN (solo el propio panel la incrusta).
+    response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers["Referrer-Policy"] = "same-origin"
     path = request.url.path
     if path.startswith("/api/v1"):
@@ -54,6 +56,8 @@ app.include_router(catalog.router, prefix="/api/v1")
 app.include_router(viaticos.router, prefix="/api/v1")
 app.include_router(expenses.router, prefix="/api/v1")
 app.include_router(documents.router, prefix="/api/v1")
+app.include_router(stats.router, prefix="/api/v1")
+app.include_router(reports.router, prefix="/api/v1")
 
 # Endpoints internos: solo n8n (token interno). En producción, Caddy NO los expone.
 app.include_router(internal_registration.router, prefix="/api/internal")

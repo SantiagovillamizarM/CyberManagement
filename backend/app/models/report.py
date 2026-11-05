@@ -17,5 +17,8 @@ class Report(UUIDPrimaryKey, Base):
     company_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("companies.id"))
     generated_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("admin_users.id"))
     filters: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    # Cifras principales (cantidad, total...) para listar informes sin abrir el PDF.
+    summary: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     storage_key: Mapped[str] = mapped_column(String(255), unique=True)
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    size_bytes: Mapped[int | None]
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now(), index=True)

@@ -94,8 +94,14 @@ Gráficos en SVG propio, sin librerías, siguiendo el skill dataviz:
   aprobado `#199e70`, enviado `#2f6bff`, pendiente `#c98500`, en revisión `#9085e9`, rechazado `#e66767`.
   Cada estado tiene el mismo color en los gráficos y en las insignias.
 - Cada gráfico tiene una **tabla equivalente** para lectores de pantalla, y los tooltips usan `textContent`.
-- Hoy se agregan hasta 200 gastos en el navegador. Con más volumen, un endpoint de estadísticas en el backend
-  hará esos cálculos (paso 7.4).
+- **Las cifras las calcula el servidor** (paso 7.4): `GET /api/v1/stats/dashboard` agrega en PostgreSQL, así que
+  son exactas con cualquier volumen. Antes se sumaban hasta 200 gastos en el navegador y con más datos quedaban
+  incompletas. El número de consultas es fijo (hay una prueba que lo comprueba con 2 y con 30 gastos).
+- Reglas: cuentan los gastos enviados, en revisión, aprobados y cerrados. El día es la fecha de la factura o, si falta,
+  la de recepción **en hora de Colombia**.
+- Bloques que agregó el 7.4, según el requerimiento 6.1: la franja de **viáticos** (entregado, gastado de viáticos,
+  saldo restante y fotos sin registrar) y **Gasto por empleado** (los 8 que más han gastado). Cada viático abierto
+  lleva a su detalle.
 
 ### El momento de la portada: el escaneo de la factura
 
@@ -183,9 +189,9 @@ dashboard y esta página.
 | Sección | Estado |
 |---|---|
 | Login | ✅ 7.1 |
-| Dashboard (indicadores básicos y gastos recientes) | ✅ 7.1 (los gráficos llegan en el 7.4) |
+| Dashboard (indicadores básicos y gastos recientes) | ✅ 7.1 |
 | Empleados: crear, editar, activar o desactivar, eliminar, generar o revocar código, desvincular Telegram | ✅ 7.1 |
 | Facturas y gastos: revisar con la foto, comparar con la IA, aprobar, rechazar, corregir e historial | ✅ 7.2 |
 | Viáticos: asignar, adicionales, reintegros, ajustes, liquidación y cierre | ✅ 7.3 |
-| Dashboard con gráficos | 7.4 |
+| Dashboard con estadísticas calculadas en el servidor | ✅ 7.4 |
 | Informes PDF | Fase 8 |

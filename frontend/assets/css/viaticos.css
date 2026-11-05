@@ -53,8 +53,7 @@
 .vt-preview { margin-top: 14px; }
 .modal-lead { margin-bottom: 16px; }
 .nowrap { white-space: nowrap; }
-.metric-hint.is-danger { display: inline-flex; align-items: center; gap: 6px; color: var(--danger); }
-.metric-hint.is-danger svg { width: 14px; height: 14px; }
+/* .metric-hint.is-danger está en components.css */
 
 .vt-blocked {
   display: flex;

@@ -448,3 +448,11 @@
 .notice-success { background: var(--success-soft); color: var(--success); }
 .notice-danger { background: var(--danger-soft); color: var(--danger); }
 .notice-info span, .notice-success span, .notice-danger span { color: var(--text); }
+
+/* Indicador con alerta (rojo, sin brillo: la luz azul es para datos verificados). */
+.metric-hint.is-danger { display: inline-flex; align-items: center; gap: 6px; color: var(--danger); }
+.metric-hint.is-danger svg { width: 14px; height: 14px; }
+
+/* Fila de viático que lleva a su detalle. */
+.vt-row-link { display: block; margin: -8px; padding: 8px; border-radius: var(--radius-control); color: inherit; text-decoration: none; transition: background var(--speed); }
+.vt-row-link:hover, .vt-row-link:focus-visible { background: var(--electric-faint); outline: none; }
