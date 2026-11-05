@@ -77,7 +77,7 @@ factura válida.
   - [x] 7.4 Dashboard con estadísticas calculadas en el servidor
 - [ ] Fase 8 — Informes (ver [12-informes.md](12-informes.md))
   - [x] 8.1 Generación del PDF, guardado y endpoints
-  - [ ] 8.2 Página de informes con vista previa
+  - [x] 8.2 Página de informes con vista previa
   - [ ] 8.3 WF7: informe mensual por Telegram
 - [ ] Fase 9 — Pruebas y seguridad
 - [ ] Fase 10 — Despliegue

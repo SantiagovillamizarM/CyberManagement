@@ -54,9 +54,20 @@ Colombia.
 | `GET` | `/api/v1/reports` | Los últimos informes generados |
 | `GET` | `/api/v1/reports/{id}/file` | El PDF para vista previa (`inline`); con `?download=true` se descarga |
 
+## Página del panel (paso 8.2) — `informes.html`, `pages/informes.js`, `css/reports.css`
+
+| Parte | Qué hace |
+|---|---|
+| Filtros | Atajos (*Este mes*, *Mes anterior*, *Últimos 30 días* y *Este año*, en hora de Colombia), fechas, empleado, tipo de gasto, estados (por defecto los que cuentan como gastado) e incluir fotos |
+| Validación | Fecha final anterior a la inicial o ningún estado elegido: se explica sin llamar al servidor. Los errores del servidor se muestran tal cual, en español |
+| Vista previa | El PDF aparece en un iframe dentro de la página (`#view=FitH` lo ajusta al ancho). **No se descarga solo**: hay una prueba que confirma que no hubo ninguna descarga |
+| Acciones | **Descargar PDF** (`?download=true`) y **Abrir en otra pestaña** (útil en celular, donde algunos navegadores no muestran PDF dentro de la página). Resumen con facturas, total, fotos y peso |
+| Historial | Los últimos 20 informes: cuándo, período, filtros, quién, facturas y total, con *Ver* y *Descargar*. `informes.html?id=<id>` abre uno directamente |
+| Roles | El auditor también genera informes |
+
 ## Pruebas
 
-`tests/test_reports.py` (21 pruebas). Se inyectaron 6 fallas y todas fueron detectadas: texto sin escapar, rechazados
+`tests/test_reports.py` (21 pruebas) y `tests_e2e/test_panel_reports.py` (7 pruebas en Edge real). Se inyectaron 6 fallas y todas fueron detectadas: texto sin escapar, rechazados
 por defecto, sin fecha final, iframe permitido en todo el sitio, sin auditoría e informe de otra empresa.
 
 Prueba en vivo (2026-11-04): con los datos reales de desarrollo generó un PDF de 2 páginas con la foto real de la

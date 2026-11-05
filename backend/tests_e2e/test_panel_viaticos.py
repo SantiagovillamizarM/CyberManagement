@@ -14,6 +14,7 @@ from playwright.sync_api import Page, expect
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.core.config import PROJECT_ROOT
 from app.core.security import hash_password
 from app.db.session import engine
 from app.models import AdminUser, Company
@@ -199,9 +200,14 @@ def auditor() -> Iterator[tuple[str, str]]:
         user_id = user.id
     yield email, password
     with engine.begin() as c:
+        # Primero lo que generó (informes): lo referencian a él.
+        keys = c.execute(text("SELECT storage_key FROM reports WHERE generated_by_id = :i"), {"i": user_id}).scalars().all()
+        c.execute(text("DELETE FROM reports WHERE generated_by_id = :i"), {"i": user_id})
         c.execute(text("DELETE FROM admin_sessions WHERE admin_user_id = :i"), {"i": user_id})
         c.execute(text("DELETE FROM audit_log WHERE actor_id = :i"), {"i": str(user_id)})
         c.execute(text("DELETE FROM admin_users WHERE id = :i"), {"i": user_id})
+    for key in keys:
+        (PROJECT_ROOT / "storage" / key).unlink(missing_ok=True)
 
 
 def test_auditor_only_reads(page: Page, seed: Seed, auditor) -> None:

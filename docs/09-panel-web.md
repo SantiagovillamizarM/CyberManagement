@@ -14,7 +14,7 @@ Código: `frontend/`. HTML, CSS y JavaScript (módulos ES), sin frameworks ni pr
 
 ```
 frontend/
-├── index.html · login.html · empleados.html · gastos.html · viaticos.html   (solo cargan su módulo JS)
+├── index.html · login.html · empleados.html · gastos.html · viaticos.html · informes.html   (solo cargan su módulo JS)
 └── assets/
     ├── css/   tokens.css (colores, fuente y medidas), base.css, components.css, layout.css
     ├── js/    dom.js (construcción segura), api.js (cliente), ui.js (modales, avisos, formatos),
@@ -194,4 +194,4 @@ dashboard y esta página.
 | Facturas y gastos: revisar con la foto, comparar con la IA, aprobar, rechazar, corregir e historial | ✅ 7.2 |
 | Viáticos: asignar, adicionales, reintegros, ajustes, liquidación y cierre | ✅ 7.3 |
 | Dashboard con estadísticas calculadas en el servidor | ✅ 7.4 |
-| Informes PDF | Fase 8 |
+| Informes PDF: filtros, vista previa en el navegador, descarga e historial | ✅ 8.2 (ver [12-informes.md](12-informes.md)) |

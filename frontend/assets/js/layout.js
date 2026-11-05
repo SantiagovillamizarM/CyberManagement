@@ -12,7 +12,7 @@ const NAV = [
   { section: "Finanzas" },
   { href: "/gastos.html", label: "Facturas", icon: "receipt", key: "gastos" },
   { href: "/viaticos.html", label: "Viáticos", icon: "wallet", key: "viaticos" },
-  { href: "/informes.html", label: "Informes", icon: "report", key: "informes", soon: true },
+  { href: "/informes.html", label: "Informes", icon: "report", key: "informes" },
 ];
 
 const ROLE_LABELS = { superadmin: "Superadministrador", admin: "Administrador", auditor: "Auditor" };
