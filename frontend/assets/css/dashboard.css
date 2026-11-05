@@ -186,7 +186,7 @@
 .seg-key { width: 10px; height: 10px; border-radius: 3px; background: var(--tone); }
 .seg-empty { height: 28px; border-radius: 4px; background: var(--surface-2); }
 
-@keyframes grow-x { from { transform: scaleX(0); opacity: 0; } }
+/* grow-x está en components.css (lo comparten los medidores). */
 
 /* ---------- Barras ordenadas (gasto por categoría) ---------- */
 .rank { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
@@ -219,44 +219,11 @@
 .rank-row:hover .rank-fill, .rank-row:focus-visible .rank-fill { filter: brightness(1.25) drop-shadow(0 0 8px rgba(77, 141, 255, 0.7)); }
 .rank-value { font-size: 0.88rem; font-weight: 650; font-variant-numeric: tabular-nums; }
 
-/* ---------- Viáticos (medidores) ---------- */
-.vt-list { display: grid; gap: 18px; margin: 0; padding: 0; list-style: none; }
-.vt-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-end; }
-.vt-left { display: grid; text-align: right; line-height: 1.2; }
-.vt-left strong { font-size: 1rem; font-weight: 720; }
-.vt-left span { font-size: 0.75rem; color: var(--text-faint); }
-.vt-foot { display: flex; justify-content: space-between; gap: 10px; margin-top: 6px; }
-.vt-flag { display: inline-flex; gap: 6px; align-items: center; font-size: 0.78rem; font-weight: 600; }
-.vt-flag svg { width: 14px; height: 14px; }
-.vt-flag.is-warning { color: var(--warning); }
-.vt-flag.is-danger { color: var(--danger); }
-
-.meter {
-  position: relative;
-  display: block;
-  height: 8px;
-  margin-top: 10px;
-  overflow: hidden;
-  border-radius: 8px;
-  background: rgba(47, 107, 255, 0.16); /* pista: un paso más claro del mismo azul */
-}
-
-.meter-fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: calc(var(--w, 0) * 100%);
-  border-radius: inherit;
-  background: var(--electric);
-  transform-origin: left center;
-  animation: grow-x 1.1s var(--ease-out) 0.3s both;
-}
-
-.meter-fill[data-level="warning"] { background: var(--warning); }
-.meter-fill[data-level="danger"] { background: var(--danger); }
+/* Los medidores de viáticos (.vt-*, .meter) están en components.css: también los usa viaticos.html. */
 
 /* Movimiento reducido: todo aparece ya en su estado final. */
 @media (prefers-reduced-motion: reduce) {
   .ac-line { stroke-dashoffset: 0; animation: none; }
   .ac-area, .ac-end, .ac-end-label { opacity: 1; animation: none; }
-  .seg-block, .rank-fill, .meter-fill { animation: none; }
+  .seg-block, .rank-fill { animation: none; }
 }

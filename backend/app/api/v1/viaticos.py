@@ -18,9 +18,19 @@ from app.services.audit import Actor
 router = APIRouter(prefix="/viaticos", tags=["viáticos"])
 
 
+def _movement_out(db: Session, movement, names: dict) -> MovementOut:
+    if movement.created_by_id and movement.created_by_id not in names:
+        admin = db.get(AdminUser, movement.created_by_id)
+        names[movement.created_by_id] = admin.full_name if admin else "Administrador"
+    out = MovementOut.model_validate(movement, from_attributes=True)
+    out.created_by_name = names.get(movement.created_by_id)
+    return out
+
+
 def _to_out(db: Session, viatico: Viatico) -> ViaticoOut:
     employee = db.get(Employee, viatico.employee_id)
     balance = service.compute_balance(db, viatico)
+    names: dict = {}
     return ViaticoOut(
         id=viatico.id,
         employee=EmployeeRef.model_validate(employee, from_attributes=True),
@@ -29,7 +39,8 @@ def _to_out(db: Session, viatico: Viatico) -> ViaticoOut:
         opened_at=viatico.opened_at,
         closed_at=viatico.closed_at,
         balance=BalanceOut(**balance.__dict__),
-        movements=[MovementOut.model_validate(m, from_attributes=True) for m in viatico.movements],
+        movements=[_movement_out(db, m, names) for m in viatico.movements],
+        unresolved_expenses=service.count_unresolved(db, viatico),
     )
 
 

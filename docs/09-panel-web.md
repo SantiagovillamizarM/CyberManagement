@@ -14,7 +14,7 @@ Código: `frontend/`. HTML, CSS y JavaScript (módulos ES), sin frameworks ni pr
 
 ```
 frontend/
-├── index.html · login.html · empleados.html · gastos.html   (solo cargan su módulo JS)
+├── index.html · login.html · empleados.html · gastos.html · viaticos.html   (solo cargan su módulo JS)
 └── assets/
     ├── css/   tokens.css (colores, fuente y medidas), base.css, components.css, layout.css
     ├── js/    dom.js (construcción segura), api.js (cliente), ui.js (modales, avisos, formatos),
@@ -133,6 +133,25 @@ Backend agregado para esta pantalla:
 - La advertencia "la suma de los productos no coincide" ahora acepta que sumen el **subtotal o el total**, porque en
   Colombia los precios suelen incluir el IVA.
 
+## Viáticos (paso 7.3) — `viaticos.html`, `pages/viaticos.js`, `css/viaticos.css`
+
+> Requerimiento 4: el dinero **entregado** no es lo mismo que el dinero **gastado**. El saldo nunca se escribe a mano:
+> lo calcula el servidor como entregado − reintegrado − gastado. Las facturas rechazadas o borradas no cuentan.
+
+| Parte | Qué hace |
+|---|---|
+| Resumen | Entregado, gastado y disponible de los viáticos abiertos. Si alguno gastó de más, se avisa en rojo (la luz azul es para datos verificados, no para alertas) |
+| Tarjetas | Una por viático, con un medidor de gastado frente a entregado: azul, ámbar desde el 85 % y rojo por encima del 100 %. Primero los más gastados. Filtros por abiertos, cerrados o todos y por empleado |
+| Detalle | Disponible, desglose (entregado, reintegrado, gastado y aprobado), la liquidación "si se cerrara hoy", los movimientos con quién los registró (o "desde el bot") y las facturas del viático, cada una con enlace a su detalle |
+| Asignar | Empleado activo, monto y propósito. El empleado recibe el aviso por Telegram |
+| Registrar movimiento | Dinero adicional, reintegro o ajuste. El ajuste puede ser negativo y exige una nota. Muestra "Disponible después" mientras se escribe. Se le avisa al empleado |
+| Cerrar | Muestra la liquidación antes de confirmar: "*X debe reintegrar $…*", "*La empresa le debe reembolsar $…*" o "*paz y salvo*". Con facturas sin resolver no deja cerrar, dice cuántas y enlaza a `gastos.html?viatico=<id>` |
+| Auditor | Solo ve: no hay botones para asignar, registrar ni cerrar |
+
+Backend agregado: `unresolved_expenses` en cada viático (las facturas que impiden cerrarlo) y `created_by_name` en
+cada movimiento. Los estilos del medidor (`.meter`, `.vt-*`) pasaron a `components.css`, porque los comparten el
+dashboard y esta página.
+
 ## Seguridad
 
 | Medida | Dónde |
@@ -167,6 +186,6 @@ Backend agregado para esta pantalla:
 | Dashboard (indicadores básicos y gastos recientes) | ✅ 7.1 (los gráficos llegan en el 7.4) |
 | Empleados: crear, editar, activar o desactivar, eliminar, generar o revocar código, desvincular Telegram | ✅ 7.1 |
 | Facturas y gastos: revisar con la foto, comparar con la IA, aprobar, rechazar, corregir e historial | ✅ 7.2 |
-| Viáticos | 7.3 |
+| Viáticos: asignar, adicionales, reintegros, ajustes, liquidación y cierre | ✅ 7.3 |
 | Dashboard con gráficos | 7.4 |
 | Informes PDF | Fase 8 |

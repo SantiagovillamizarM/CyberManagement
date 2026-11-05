@@ -30,6 +30,7 @@ class MovementOut(BaseModel):
     amount: Decimal
     source: MovementSource
     note: str | None
+    created_by_name: str | None = None  # administrador que lo registró (None si lo declaró el empleado)
     created_at: datetime
 
 
@@ -51,3 +52,5 @@ class ViaticoOut(BaseModel):
     closed_at: datetime | None
     balance: BalanceOut
     movements: list[MovementOut]
+    # Gastos sin aprobar ni rechazar: mientras haya alguno, el viático no se puede cerrar.
+    unresolved_expenses: int

@@ -45,7 +45,7 @@ const PROCESSING = {
   not_invoice: "No es factura", failed: "Falló la lectura",
 };
 
-const state = { admin: null, quick: "", search: "", employee: "", category: "", from: "", to: "", offset: 0 };
+const state = { admin: null, quick: "", search: "", employee: "", category: "", from: "", to: "", viatico: "", offset: 0 };
 let listHost, moreHost, photosHost, categories = [];
 
 startPage(async () => {
@@ -53,17 +53,22 @@ startPage(async () => {
   state.admin = admin;
   const params = new URLSearchParams(location.search);
   if (QUICK.some((q) => q.key === params.get("status"))) state.quick = params.get("status");
+  state.viatico = params.get("viatico") || "";  // desde Viáticos: solo las facturas de ese viático
 
   const [employees, cats] = await Promise.all([api("/employees" + query({ limit: 200 })), api("/categories")]);
   categories = cats;
 
   listHost = h("div", {});
+  const viaticoNote = state.viatico ? h("div", { class: "notice notice-info" }, icon("wallet"),
+    h("span", {}, "Mostrando solo las facturas de un viático. ",
+      h("a", { class: "row-link", href: "/gastos.html" }, "Ver todas →"))) : null;
   moreHost = h("div", { class: "list-more" });
   photosHost = h("div", {});
   mount(content,
     h("div", { class: "page-header" },
       h("div", {}, h("h1", {}, "Facturas y gastos"),
         h("p", {}, "Revisa cada factura junto a su foto, compara lo que leyó la IA y apruébala o recházala."))),
+    viaticoNote,
     h("div", { class: "card" },
       h("div", { class: "card-header" }, filters(employees.items)),
       listHost, moreHost),
@@ -125,7 +130,7 @@ function listParams() {
   const quick = QUICK.find((q) => q.key === state.quick);
   const params = new URLSearchParams(query({
     search: state.search, employee_id: state.employee, category_id: state.category,
-    issue_date_from: state.from, issue_date_to: state.to, limit: PAGE, offset: state.offset,
+    issue_date_from: state.from, issue_date_to: state.to, viatico_id: state.viatico, limit: PAGE, offset: state.offset,
   }).slice(1));
   for (const status of quick?.statuses || []) params.append("status", status);
   return `?${params}`;

@@ -126,8 +126,7 @@
 }
 .exp-badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 
-.notice-danger { background: var(--danger-soft); color: var(--danger); }
-.notice-danger span { color: var(--text); }
+/* .notice-danger está en components.css */
 
 .exp-warnings { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .exp-warnings li { display: flex; gap: 8px; min-width: 0; color: var(--warning); font-size: 0.86rem; overflow-wrap: anywhere; }

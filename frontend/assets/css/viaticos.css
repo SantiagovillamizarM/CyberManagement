@@ -1,0 +1,78 @@
+/* Viáticos (paso 7.3). Reutiliza el detalle de expenses.css (secciones, historial) y el
+   medidor de components.css. Solo se animan transform y opacity. */
+
+.vt-summary { margin-bottom: 22px; }
+@media (min-width: 901px) { .vt-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+.vt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vt-card {
+  display: grid;
+  width: 100%;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-2);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform var(--speed) var(--ease-out), border-color var(--speed);
+}
+.vt-card:hover { transform: translateY(-2px); border-color: var(--line-strong); }
+.vt-card:focus-visible { outline: 2px solid var(--electric-glow); outline-offset: 2px; }
+.vt-card.is-closed { opacity: 0.72; }
+.vt-card .vt-foot { align-items: center; }
+
+/* ---------- Detalle ---------- */
+.vt-detail { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+.vt-detail > .meter { margin-top: -6px; }
+.vt-hero { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.is-negative { color: var(--danger); }
+
+.vt-breakdown {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+}
+.vt-breakdown > div { padding: 12px 14px; }
+.vt-breakdown > div + div { border-left: 1px solid var(--line); }
+.vt-breakdown dt { color: var(--text-faint); font-size: 0.78rem; }
+.vt-breakdown dd { margin: 4px 0 0; font-weight: 680; }
+
+.vt-move { display: flex; justify-content: space-between; gap: 12px; }
+.vt-preview { margin-top: 14px; }
+.modal-lead { margin-bottom: 16px; }
+.nowrap { white-space: nowrap; }
+.metric-hint.is-danger { display: inline-flex; align-items: center; gap: 6px; color: var(--danger); }
+.metric-hint.is-danger svg { width: 14px; height: 14px; }
+
+.vt-blocked {
+  display: flex;
+  flex: 1 1 260px;
+  align-items: flex-start;
+  margin-right: auto;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+}
+.vt-blocked svg { width: 16px; height: 16px; flex: none; margin-top: 2px; color: var(--warning); }
+
+@media (max-width: 760px) {
+  .vt-breakdown { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .vt-breakdown > div:nth-child(3) { border-left: none; }
+  .vt-breakdown > div:nth-child(n + 3) { border-top: 1px solid var(--line); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vt-card { transition: none; }
+}

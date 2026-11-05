@@ -73,7 +73,7 @@ factura válida.
 - [ ] Fase 7 — Panel web (adelantada; ver [09-panel-web.md](09-panel-web.md))
   - [x] 7.1 Diseño base, login y empleados
   - [x] 7.2 Facturas y gastos
-  - [ ] 7.3 Viáticos
+  - [x] 7.3 Viáticos
   - [ ] 7.4 Dashboard con gráficos
 - [ ] Fase 8 — Informes
 - [ ] Fase 9 — Pruebas y seguridad

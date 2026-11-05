@@ -222,16 +222,21 @@ def add_movement(
     return movement
 
 
-def close_viatico(db: Session, viatico: Viatico, actor: Actor) -> Balance:
-    if viatico.status == ViaticoStatus.CLOSED:
-        raise ViaticoClosedError
-    unresolved = db.scalar(
+def count_unresolved(db: Session, viatico: Viatico) -> int:
+    """Gastos del viático que aún no se aprueban ni rechazan: impiden cerrarlo."""
+    return db.scalar(
         select(func.count()).where(
             Expense.viatico_id == viatico.id,
             Expense.deleted_at.is_(None),
             Expense.status.in_(UNRESOLVED_STATUSES),
         )
     )
+
+
+def close_viatico(db: Session, viatico: Viatico, actor: Actor) -> Balance:
+    if viatico.status == ViaticoStatus.CLOSED:
+        raise ViaticoClosedError
+    unresolved = count_unresolved(db, viatico)
     if unresolved:
         raise ViaticoRuleError(
             f"Hay {unresolved} gasto(s) sin aprobar o rechazar. Resuélvelos antes de cerrar."
